@@ -15,3 +15,5 @@
 .article :not(pre)>code{overflow-wrap:anywhere;word-break:break-word}
 
 @media(max-width:650px){.article p:has(>img){max-width:100%;overflow-x:auto;border-radius:14px}.article p:has(>img)::before{content:"Scroll to explore diagram →";display:block;padding:7px 10px;color:var(--muted);font-size:.78rem}.article p:has(>img) img{width:760px;max-width:none;margin:0 0 8px}.home-diagram-scroll{overflow-x:auto}.home-diagram{width:760px;max-width:none}}
+
+.page-outline{margin:22px 0 28px;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:#101c2b}.page-outline summary{cursor:pointer;color:var(--cyan);font-weight:600}.page-outline ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;margin:14px 0 3px!important;padding-left:20px!important}.page-outline li{font-size:.88rem!important;margin:3px 0!important}.article .page-outline a{overflow-wrap:anywhere}.journeys>a:nth-child(3){grid-column:1/-1}@media(max-width:650px){.page-outline ul{grid-template-columns:1fr}}

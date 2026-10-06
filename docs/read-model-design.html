@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Choose immutable event-folded views or durable SQL models and enforce the current caller’s scope."><title>Design read models · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a class="current" aria-current="page" href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Patterns</div><h1 id="design-read-models">Design read models</h1>
+<p>A read model presents information for a particular reader. It can combine facts from several actors, omit write-side details, and organize fields for a UI or report. It is derived from accepted history, while the write-side decision remains with the responsible actor or commit policy.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#a-pure-immutable-model">A pure immutable model</a></li><li><a href="#how-the-troolio-resolver-works">How the Troolio resolver works</a></li><li><a href="#map-a-source-into-the-linked-model">Map a source into the linked model</a></li><li><a href="#enforce-authorization-explicitly">Enforce authorization explicitly</a></li><li><a href="#sql-serving-models">SQL serving models</a></li><li><a href="#shape-the-model-for-the-task">Shape the model for the task</a></li></ul></nav></details>
+<p>The term covers several implementations. Troolio supplies <code>TroolioReadModel</code> and a resolver that folds an event stream. A larger application can also maintain semantic SQL tables through durable projections. Choose deliberately: the cost, freshness, and access boundary differ.</p>
+<h2 id="a-pure-immutable-model">A pure immutable model</h2>
+<p>The example's <code>RegistrationDetails</code> has a <code>Guid</code> constructor, fields for a registration detail view, and <code>On</code> methods that return a new record.</p>
+<pre><code class="language-csharp">public sealed record RegistrationDetails(Guid Id) : TroolioReadModel
+{
+    public Guid OwnerId { get; init; }
+    public Guid WorkshopId { get; init; }
+    public string DisplayName { get; init; } = &quot;&quot;;
+    public string Status { get; init; } = &quot;absent&quot;;
+
+    public RegistrationDetails On(EventEnvelope&lt;RegistrationRequested&gt; envelope) =&gt;
+        this with { OwnerId = envelope.Event.AttendeeId, WorkshopId = envelope.Event.WorkshopId,
+            DisplayName = envelope.Event.DisplayName, Status = &quot;requested&quot; };
+
+    public RegistrationDetails On(EventEnvelope&lt;RegistrationCancelled&gt; _) =&gt;
+        this with { Status = &quot;cancelled&quot; };
+
+    public override Func&lt;Metadata, bool&gt; Authorized =&gt;
+        headers =&gt; OwnerId != Guid.Empty &amp;&amp; headers.UserId == OwnerId;
+}
+</code></pre>
+<p>The <code>with</code> expression preserves the previous record and changes the relevant fields. It does not perform a database read or call another actor. That makes the calculation useful for deterministic event folding and for testing historical sequences.</p>
+<p>A record does not make everything deeply immutable. Arrays, lists, and mutable objects inside a record can still change. Use immutable collections or copy mutable input before retaining it as model state.</p>
+<h2 id="how-the-troolio-resolver-works">How the Troolio resolver works</h2>
+<p><code>ITroolioClient.Get&lt;TReadModel&gt;(id)</code> asks <code>ReadModelResolver&lt;TReadModel&gt;</code> to construct the model using the parsed GUID ID and apply the events in its read-model stream. <code>ReadModelProjectionActor&lt;T&gt;</code> can map source envelopes to a model key and record links; the chosen <code>IStore</code> must resolve those link records correctly.</p>
+<p>This is useful for a small exact model with a known event history. It is not automatically an indexed SQL catalogue, and fetching one model can fold its linked history again. Monitor the cost of that read as history grows.</p>
+<p>The resolver's local folding envelope versions should not be mistaken for the authoritative source revision of a multi-stream projection. If the UI needs an explicit freshness contract, persist the relevant source positions or operation receipt in the application read model.</p>
+<h2 id="map-a-source-into-the-linked-model">Map a source into the linked model</h2>
+<p>The optional linker selects the registration ID as the destination model key:</p>
+<pre><code class="language-csharp">[ProjectionStreamSubscription(typeof(RegistrationActor))]
+public sealed class RegistrationDetailsLinks(IStore store)
+    : ReadModelProjectionActor&lt;RegistrationDetails&gt;(store)
+{
+    public string Handle(EventEnvelope&lt;RegistrationRequested&gt; envelope) =&gt;
+        envelope.Event.RegistrationId.ToString(&quot;D&quot;);
+
+    public string Handle(EventEnvelope&lt;RegistrationCancelled&gt; envelope) =&gt;
+        envelope.Event.RegistrationId.ToString(&quot;D&quot;);
+}
+</code></pre>
+<p>This linked fold assumes an ordered relevant history. The model's pure methods do not supply durable delivery deduplication or protect against out-of-order link appends by themselves. The host must provide that source contract. For the worked application's normal SQL reads, use <code>RegistrationCardsProjection</code> and its inbox writer instead.</p>
+<h2 id="enforce-authorization-explicitly">Enforce authorization explicitly</h2>
+<p><code>TroolioReadModel.Authorized</code> defaults to allowing access. An override expresses a model rule, but the host must invoke and enforce it with headers constructed from the current authenticated caller. The generic client resolver does not establish that security boundary for you.</p>
+<pre><code class="language-csharp">public static async Task&lt;RegistrationDetails&gt; ReadDetailsAsync(ITroolioClient client,
+    Guid registrationId, Metadata verifiedCaller)
+{
+    RegistrationDetails details = await client.Get&lt;RegistrationDetails&gt;(registrationId.ToString(&quot;D&quot;));
+    if (!details.Authorized(verifiedCaller)) throw new UnauthorizedAccessException();
+    return details;
+}
+</code></pre>
+<p>Do not run this check against user IDs copied from an untrusted request body. Do not cache an authorized result indefinitely after the user loses access. A staff reader and an attendee reader may need separate rules rather than one broad view.</p>
+<h2 id="sql-serving-models">SQL serving models</h2>
+<p>For lists, cross-actor catalogues, search, notifications, and reporting, a durable projection can maintain typed SQL rows. The sample's exact reader applies the attendee filter in the database:</p>
+<pre><code class="language-csharp">public async Task&lt;RegistrationCard?&gt; GetForUserAsync(Guid registrationId, Guid authenticatedUserId,
+    CancellationToken cancellationToken)
+{
+    await using var connection = new SqlConnection(connectionString);
+    await connection.OpenAsync(cancellationToken);
+    using var command = connection.CreateCommand();
+    command.CommandText = &quot;&quot;&quot;
+        SELECT RegistrationId, WorkshopId, AttendeeId, DisplayName, Status
+        FROM dbo.WorkshopRegistrationCard WHERE RegistrationId = @id AND AttendeeId = @user;
+        &quot;&quot;&quot;;
+    command.Parameters.Add(&quot;@id&quot;, SqlDbType.UniqueIdentifier).Value = registrationId;
+    command.Parameters.Add(&quot;@user&quot;, SqlDbType.UniqueIdentifier).Value = authenticatedUserId;
+    await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+    return await reader.ReadAsync(cancellationToken)
+        ? new(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3), reader.GetString(4))
+        : null;
+}
+</code></pre>
+<p>A page reader should also have a fixed maximum size and stable continuation cursor. Fetching every record and filtering in memory makes access control, memory use, and latency harder to reason about. Treat missing, unavailable, and not-yet-current projection outcomes distinctly where the API needs that information.</p>
+<h2 id="shape-the-model-for-the-task">Shape the model for the task</h2>
+<p>A registration detail page needs one card. A roster page needs a list and maybe a count. A reminder worker needs an indexed due-time query. A reporting page may need historical aggregates. Keep those shapes explicit rather than making every caller reconstruct and interpret the full actor state.</p>
+<p>A stale read model can explain a recent state to a user, but a business invariant still needs current write-side checks. A projected attendee count alone cannot allocate the final available place safely.</p>
+<p>Continue with <a href="cqrs-in-practice.html">CQRS in practice</a>, <a href="projection-design.html">projection design</a>, and <a href="realtime-updates.html">realtime updates</a>. See the <a href="https://github.com/Fifty3North/troolio-docs/tree/main/examples/workshop">workshop sample</a> for both the immutable model and the SQL reader.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

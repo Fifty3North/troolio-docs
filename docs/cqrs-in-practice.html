@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Separate business decisions from query-shaped views and explain consistency to callers."><title>CQRS in practice · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a class="current" aria-current="page" href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="cqrs-in-practice">CQRS in practice</h1>
+<p>CQRS gives commands and queries different jobs. A command asks the write side to decide a change. A query asks for information in a shape that is useful to a reader. The two can share a database, or use different stores, while still having different models.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#start-from-the-question">Start from the question</a></li><li><a href="#commands-communicate-intent">Commands communicate intent</a></li><li><a href="#read-models-communicate-useful-facts">Read models communicate useful facts</a></li><li><a href="#handle-the-gap-between-writes-and-reads">Handle the gap between writes and reads</a></li><li><a href="#avoid-expensive-read-paths">Avoid expensive read paths</a></li></ul></nav></details>
+<p>In Troolio, an event-sourced actor is a natural command boundary. A query to that actor reads its current reconstructed state. A projection can also produce a SQL view that answers cross-actor questions without loading many actors.</p>
+<h2 id="start-from-the-question">Start from the question</h2>
+<p>A workshop application has several readers:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Suitable model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What is the status of this one registration?</td>
+<td>A registration actor query or an exact registration card read.</td>
+</tr>
+<tr>
+<td>Show my registrations for this workshop</td>
+<td>An indexed SQL view filtered by current user and workshop.</td>
+</tr>
+<tr>
+<td>How many places can still be allocated safely?</td>
+<td>The authoritative write-side capacity decision.</td>
+</tr>
+<tr>
+<td>Show activity across all workshops</td>
+<td>A separate reporting projection with paging and access control.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The same event can update more than one view. There is no need to expose a complete actor snapshot when the page only needs a name, status, and workshop ID.</p>
+<h2 id="commands-communicate-intent">Commands communicate intent</h2>
+<p>The sample makes registration and cancellation explicit commands. It records accepted outcomes as past-tense events.</p>
+<pre><code class="language-csharp">public interface IRegistrationActor : IActor { }
+
+[GenerateSerializer]
+public record RequestRegistration(Metadata Headers, Guid RegistrationId,
+    Guid WorkshopId, string DisplayName) : Command&lt;IRegistrationActor&gt;(Headers);
+
+[GenerateSerializer]
+public record CancelRegistration(Metadata Headers) : Command&lt;IRegistrationActor&gt;(Headers);
+
+[GenerateSerializer]
+public record GetRegistration : Query&lt;IRegistrationActor, RegistrationState&gt;;
+
+[GenerateSerializer]
+public record RegistrationRequested(Metadata Headers, Guid RegistrationId,
+    Guid WorkshopId, Guid AttendeeId, string DisplayName) : Event(Headers);
+
+[GenerateSerializer]
+public record RegistrationCancelled(Metadata Headers, Guid RegistrationId,
+    Guid WorkshopId, Guid AttendeeId, string DisplayName) : Event(Headers);
+</code></pre>
+<p>A command can fail because its inputs or current state are invalid. A query should not create a registration as a side effect. Make the API outcome clear enough that the client knows whether a request was rejected, accepted for processing, or committed under the selected protocol.</p>
+<h2 id="read-models-communicate-useful-facts">Read models communicate useful facts</h2>
+<p>A registration card is a deliberately small result:</p>
+<pre><code class="language-csharp">public sealed record RegistrationCard(Guid RegistrationId, Guid WorkshopId,
+    Guid AttendeeId, string DisplayName, string Status);
+</code></pre>
+<p>The SQL reader filters by the current authenticated user in the query itself. It does not load every card and filter the result in memory. For a list, choose an index and stable ordering that match the question, and return a bounded page with a continuation cursor.</p>
+<p><a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs">Microsoft's CQRS guidance</a> describes the distinction between read and write models and the consistency consequences of separately updated stores. Use this pattern where the different responsibilities are useful; the actor and provider contracts determine your application's actual guarantees.</p>
+<h2 id="handle-the-gap-between-writes-and-reads">Handle the gap between writes and reads</h2>
+<p>A command may commit before the SQL card changes. Tell callers what that means. A UI can display the accepted command result, show a short updating state, then refresh the view when its projection is current. A stale view should not be silently used as authority for a conflicting command.</p>
+<p>A returned source version can help a client track the update of one source stream. It is not a total ordering across unrelated actors. If a page depends on several streams, define a version vector, operation receipt, or other freshness contract appropriate to that page.</p>
+<h2 id="avoid-expensive-read-paths">Avoid expensive read paths</h2>
+<p>A cross-actor catalogue should not reconstruct every actor on each API request. A growing history can turn a once-small replay query into a slow endpoint. Promote that view into an application-owned durable projection, index it, and run any catch-up as bounded work.</p>
+<p>An exact read of one small linked-event model can still be useful. <a href="read-model-design.html">Read-model design</a> explains the current Troolio resolver and why it is a different serving choice from a SQL catalogue.</p>
+<p>Continue with <a href="projection-design.html">projection design</a>, <a href="realtime-updates.html">realtime updates</a>, and <a href="actor-boundaries.html">actor boundaries</a>.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

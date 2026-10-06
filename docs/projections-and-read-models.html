@@ -1,22 +1,78 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Asynchronous views over committed events."><title>Projections and read models · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a class="current" aria-current="page" href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="projections-and-read-models">Projections and read models</h1>
-<p><img alt="After an event commit, a durable handoff feeds a projection while external effects follow a separate intent path." src="../assets/diagrams/read-side.svg" /></p>
-<p>Projections turn committed events into query-focused views. They run after the command's durable write boundary, so a successful command does not imply an immediately updated read model.</p>
-<h2 id="the-handoff-boundary">The handoff boundary</h2>
-<p>A selected atomic store commits required projection handoffs with participant events and completion evidence. Projection workers later consume those handoffs, apply read-model changes, and record progress. If a worker fails, the handoff remains available for recovery. The host chooses and operates the consumers; Troolio does not start a production read-side service merely because a package is installed.</p>
-<p>The ordinary route can use inline or configured outbox dispatch. When <code>ProjectionDispatch:Mode</code> selects <code>OutboxPrimary</code> for an actor, the store must report that it atomically commits dispatch with events. The actor rejects that configuration if the store cannot meet the contract.</p>
-<h2 id="read-model-actors">Read model actors</h2>
-<p><code>ProjectionActor</code> and <code>ReadModelProjectionActor&lt;T&gt;</code> consume event envelopes. <code>TroolioReadModel</code> and <code>ReadModelResolver</code> are query-side building blocks. Link events can track how a read model relates to a source stream. A read-model schema is application-owned; preserve idempotent processing and version checks when workers retry.</p>
-<h2 id="what-clients-should-expect">What clients should expect</h2>
-<p>Read-side lag is normal. If an API needs read-your-write behavior, the application must design a receipt/version wait or another explicit query strategy. A client notification channel such as Server-Sent Events belongs to the host's projection integration and should not hold an accepted business command open.</p>
-<h2 id="example-query-a-read-model">Example: Query a read model</h2>
-<p>This read model has a <code>Guid</code> constructor for the resolver and applies the counter event. The client resolves it by ID; its value can lag behind the command. Production read models should override <code>Authorized</code> with their application access rule.</p>
-<pre><code class="language-csharp">public sealed record CounterReadModel(Guid Id) : TroolioReadModel
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Asynchronous views over committed events."><title>Projections and read models · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a class="current" aria-current="page" href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="projections-and-read-models">Projections and read models</h1>
+<p>A projection transforms events into a useful view. A read model is the result a query uses. In a workshop application, a registration actor owns its lifecycle, a projection writes a registration card to SQL, and an authorized reader returns that card to the attendee.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#three-roles-in-one-application">Three roles in one application</a></li><li><a href="#a-typed-projection-listener">A typed projection listener</a></li><li><a href="#a-small-immutable-read-model">A small immutable read model</a></li><li><a href="#authorization-and-freshness">Authorization and freshness</a></li></ul></nav></details>
+<p>This lets the command side focus on decisions while the query side has fields and indexes suited to the page.</p>
+<p><img alt="After a committed event, a durable handoff updates a read model; external effects use a separate intent path." src="../assets/diagrams/read-side.svg" /></p>
+<h2 id="three-roles-in-one-application">Three roles in one application</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Responsibility</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Event-sourced actor</td>
+<td>Validate a command and record domain events.</td>
+<td>Registration lifecycle.</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td>Translate delivered source events into another data shape.</td>
+<td>SQL registration card writer.</td>
+</tr>
+<tr>
+<td>Read model and reader</td>
+<td>Answer the page's question under current access rules.</td>
+<td>One attendee's registration card.</td>
+</tr>
+</tbody>
+</table></div>
+<p>An actor query reads that actor's current reconstructed state. A cross-actor list should usually read an application query model rather than activating every actor in the list. <a href="cqrs-in-practice.html">CQRS in practice</a> explains that choice.</p>
+<h2 id="a-typed-projection-listener">A typed projection listener</h2>
+<p>The example subscribes to registration events and delegates the database work to an application writer.</p>
+<pre><code class="language-csharp">[ProjectionStreamSubscription(typeof(RegistrationActor))]
+public sealed class RegistrationCardsProjection(IRegistrationCardWriter writer) : ProjectionActor
 {
-    public int Count { get; init; }
-    public CounterReadModel On(EventEnvelope&lt;Incremented&gt; _) =&gt;
-        this with { Count = Count + 1 };
+    public Task On(EventEnvelope&lt;RegistrationRequested&gt; envelope)
+    {
+        RegistrationCard card = RegistrationCards.From(envelope.Event);
+        return writer.ApplyAsync(card, RegistrationCards.Source(envelope, card), CancellationToken.None);
+    }
+
+    public Task On(EventEnvelope&lt;RegistrationCancelled&gt; envelope)
+    {
+        RegistrationCard card = RegistrationCards.From(envelope.Event);
+        return writer.ApplyAsync(card, RegistrationCards.Source(envelope, card), CancellationToken.None);
+    }
 }
 </code></pre>
-<pre><code class="language-csharp">public static async Task&lt;int&gt; ReadProjection(ITroolioClient client) =&gt;
-    (await client.Get&lt;CounterReadModel&gt;(&quot;d1cb4bc0-114d-4a8c-9a5e-f460784d7340&quot;)).Count;
-</code></pre></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>
+<p>The writer recognizes consumer/stream/version identities and commits its receipt with the view changes. It handles duplicates, source conflicts, and ordering according to the events it consumes. An attribute does not create a database schema or durable recovery policy.</p>
+<p>A compatible event-store route can persist projection handoffs with events. The host operates the consumers and recovery workers. If a projection fails after a known event commit, repair its pending read-side work rather than appending the business command again.</p>
+<h2 id="a-small-immutable-read-model">A small immutable read model</h2>
+<p>The same event facts can be folded into an immutable model. <code>RegistrationDetails</code> implements its view calculation with <code>On</code> methods returning another record.</p>
+<pre><code class="language-csharp">public sealed record RegistrationDetails(Guid Id) : TroolioReadModel
+{
+    public Guid OwnerId { get; init; }
+    public Guid WorkshopId { get; init; }
+    public string DisplayName { get; init; } = &quot;&quot;;
+    public string Status { get; init; } = &quot;absent&quot;;
+
+    public RegistrationDetails On(EventEnvelope&lt;RegistrationRequested&gt; envelope) =&gt;
+        this with { OwnerId = envelope.Event.AttendeeId, WorkshopId = envelope.Event.WorkshopId,
+            DisplayName = envelope.Event.DisplayName, Status = &quot;requested&quot; };
+
+    public RegistrationDetails On(EventEnvelope&lt;RegistrationCancelled&gt; _) =&gt;
+        this with { Status = &quot;cancelled&quot; };
+
+    public override Func&lt;Metadata, bool&gt; Authorized =&gt;
+        headers =&gt; OwnerId != Guid.Empty &amp;&amp; headers.UserId == OwnerId;
+}
+</code></pre>
+<p><code>TroolioReadModel</code> is one query-side building block. <code>ReadModelProjectionActor&lt;T&gt;</code> can record links to selected source events, and <code>ReadModelResolver&lt;T&gt;</code> folds the model's stream using a GUID constructor and event handlers. The store must resolve links correctly.</p>
+<p>This exact-model read is different from an indexed SQL catalogue. A growing linked history can make repeated reads expensive. Use a durable semantic projection for frequently queried cross-actor lists, schedules, reports, and notification feeds.</p>
+<h2 id="authorization-and-freshness">Authorization and freshness</h2>
+<p>The model's <code>Authorized</code> property expresses an access rule; the application must enforce it using the current authenticated caller. The base implementation defaults true, and the generic resolver alone is not an access-control boundary.</p>
+<p>A successful command can precede the projection update. Define whether a query returns a current result, a known stale result, or a not-ready status. A UI can show accepted command progress and refresh after a committed-data hint. Source positions are meaningful within their source contract; there is no automatic total order across all actors.</p>
+<p>Continue with <a href="projection-design.html">projection design</a>, <a href="read-model-design.html">read-model design</a>, <a href="idempotency-and-ordering.html">idempotency and ordering</a>, and <a href="realtime-updates.html">realtime updates</a>. The <a href="workshop-walkthrough.html">workshop walkthrough</a> connects the roles with downloadable C# source.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

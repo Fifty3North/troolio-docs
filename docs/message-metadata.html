@@ -1,0 +1,80 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Understand every Metadata field, identity lifetime, and the current dispatch behavior."><title>Message metadata · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a class="current" aria-current="page" href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="message-metadata">Message metadata</h1>
+<p>A message carries two kinds of information: the domain payload says what the application is doing, and its <code>Metadata</code> says how that work is related to a caller and other messages. For example, <code>RequestRegistration</code> contains a workshop ID and display name. Its headers carry the user, device, and identifiers used to follow the request.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#the-six-fields">The six fields</a></li><li><a href="#construct-headers-at-the-boundary">Construct headers at the boundary</a></li><li><a href="#what-ordinary-troolio-dispatch-does">What ordinary Troolio dispatch does</a></li><li><a href="#user-owner-and-recipient-are-different-roles">User, owner, and recipient are different roles</a></li><li><a href="#transaction-context-and-later-jobs">Transaction context and later jobs</a></li></ul></nav></details>
+<p>The distinction matters when a request crosses actors or runs again after a failure. A registration ID is a business identity. A correlation ID groups related work. A message ID identifies a message in that work. They answer different questions and should be stored and logged separately.</p>
+<h2 id="the-six-fields">The six fields</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Question it answers</th>
+<th>Typical lifetime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CorrelationId</code></td>
+<td>Which user interaction or workflow does this belong to?</td>
+<td>Shared by related work in one chosen correlation scope.</td>
+</tr>
+<tr>
+<td><code>MessageId</code></td>
+<td>Which message or runtime dispatch is this?</td>
+<td>Distinguishes messages within a correlation.</td>
+</tr>
+<tr>
+<td><code>CausationId</code></td>
+<td>Which message directly caused this message?</td>
+<td>Parent link; normally absent at a root boundary.</td>
+</tr>
+<tr>
+<td><code>UserId</code></td>
+<td>Which user is attributed to this action?</td>
+<td>Preserved as attribution when appropriate; verified at ingress.</td>
+</tr>
+<tr>
+<td><code>DeviceId</code></td>
+<td>Which client device/session context originated the action?</td>
+<td>Shared across requests from that verified device context.</td>
+</tr>
+<tr>
+<td><code>TransactionId</code></td>
+<td>Which Troolio transaction context does this dispatch participate in?</td>
+<td>Set by the command protocol; not chosen freely by a browser.</td>
+</tr>
+</tbody>
+</table></div>
+<p>All six are <code>Guid</code> values; <code>CausationId</code> and <code>TransactionId</code> are nullable. The three-argument <code>Metadata</code> constructor creates a message ID for you. It does not prove that a user, device, or correlation scope is valid.</p>
+<h2 id="construct-headers-at-the-boundary">Construct headers at the boundary</h2>
+<p>The application authenticates the request and obtains the current user and device from its trusted session. It then constructs headers for a command. Keep the same correlation ID across the related work you want to investigate together.</p>
+<pre><code class="language-csharp">public static Metadata AtIngress(Guid correlationId, Guid userId, Guid deviceId) =&gt;
+    new(correlationId, userId, deviceId);
+</code></pre>
+<p>A client-supplied correlation ID can be useful for support, but validate its shape and decide whether to accept it or allocate a server value. An arbitrary client payload must not choose the effective <code>UserId</code> simply by setting a header. Likewise, possession of someone else's <code>DeviceId</code> is not a credential.</p>
+<p>The workshop sample sends those headers with a typed command to the registration actor:</p>
+<pre><code class="language-csharp">public static Task RequestAsync(ITroolioClient client, Guid registrationId, Guid workshopId,
+    string displayName, Guid authenticatedUserId, Guid verifiedDeviceId, Guid correlationId)
+{
+    Metadata headers = MessageContext.AtIngress(correlationId, authenticatedUserId, verifiedDeviceId);
+    return client.Tell&lt;IRegistrationActor&gt;(registrationId.ToString(&quot;D&quot;),
+        new RequestRegistration(headers, registrationId, workshopId, displayName));
+}
+</code></pre>
+<p>Use the registration ID as the actor key and business retry identity. It remains meaningful even if diagnostic message IDs change along the dispatch path.</p>
+<h2 id="what-ordinary-troolio-dispatch-does">What ordinary Troolio dispatch does</h2>
+<p>In the ordinary 10.0.6 command path, Troolio establishes a transaction ID and replaces the incoming command's message ID for runtime handling. When it prepares events, it creates event message IDs and sets their causation to the handled command's ID. An ordinary <code>InternalCommand</code> receives its own runtime message ID and takes causation from the message ID carried in its incoming headers.</p>
+<p>That is why an orchestration listener forwards the triggering event's headers to an internal command. Let the command protocol establish the next step. The selected atomic path uses its verified operation identity and contextual rules; follow <a href="selected-command-route.html">the selected route</a> when using that path.</p>
+<p>Trace-enabled projection and orchestration processing may also derive delivery headers. Therefore a subscriber should use the provider's source identity, such as stream and version, for durable deduplication. A diagnostic message ID is not a universal projection receipt key.</p>
+<h2 id="user-owner-and-recipient-are-different-roles">User, owner, and recipient are different roles</h2>
+<p>Imagine an administrator cancels a registration for an attendee. The acting user is the administrator; the registration's owner and confirmation recipient may be the attendee. Store those domain roles explicitly. Replacing <code>UserId</code> with the recipient destroys useful attribution and can obscure who authorized the operation.</p>
+<p>Background work also needs an explicit policy. Retaining an initiating user's ID explains attribution, while current authorization still has to be checked before accessing data or changing state. A system actor is not automatically privileged because a header contains <code>Guid.Empty</code>.</p>
+<h2 id="transaction-context-and-later-jobs">Transaction context and later jobs</h2>
+<p>An external command should enter with no caller-invented transaction ID. Internal work can carry the active context through orchestration. A scheduled job that runs much later starts a new transaction scope when it issues its own external command; it should not keep a completed transaction alive through old headers.</p>
+<pre><code class="language-csharp">public static Metadata Scheduled(Metadata trigger, Guid currentUserId) =&gt;
+    new(Guid.NewGuid(), currentUserId, Guid.Empty)
+    {
+        CausationId = trigger.MessageId,
+        TransactionId = null
+    };
+</code></pre>
+<p>This is an application policy for a later job, including a new correlation scope and a causal link to its trigger. Recheck the relevant authority when the job runs. Use a durable job or operation ID for retries.</p>
+<p>Continue with <a href="correlation-and-causation.html">correlation and causation</a>, <a href="actor-boundaries.html">actor identity</a>, and <a href="observability.html">observability</a>. The <a href="https://github.com/Fifty3North/troolio-docs/tree/main/examples/workshop">workshop sample</a> defines the application helpers shown here.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

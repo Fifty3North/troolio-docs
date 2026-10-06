@@ -1,0 +1,90 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Follow an original application example from command through orchestration, SQL views, and queries."><title>Build a workshop workflow · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a class="current" aria-current="page" href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Start</div><h1 id="build-a-workshop-workflow">Build a workshop workflow</h1>
+<p>A counter shows the actor API. A workshop registration shows how the pieces fit in an application. This example lets an attendee request a registration, records it in a workshop roster, projects a registration card to SQL, and offers a scoped reader for the UI.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#try-the-code">Try the code</a></li><li><a href="#1-give-each-actor-a-responsibility">1. Give each actor a responsibility</a></li><li><a href="#2-send-intent-with-trusted-context">2. Send intent with trusted context</a></li><li><a href="#3-validate-and-record-the-outcome">3. Validate and record the outcome</a></li><li><a href="#4-react-with-another-actor-command">4. React with another actor command</a></li><li><a href="#5-project-a-card-for-readers">5. Project a card for readers</a></li><li><a href="#6-read-with-the-callers-access-scope">6. Read with the caller&#x27;s access scope</a></li><li><a href="#7-add-effects-through-durable-work">7. Add effects through durable work</a></li></ul></nav></details>
+<p>The downloadable <a href="https://github.com/Fifty3North/troolio-docs/tree/main/examples/workshop">workshop example</a> contains the original messages, actors, listeners, read model, SQL writer, schema, and application helpers. It is a .NET 10 class library of application building blocks. Configure a host, provider credentials, migrations, and subscriptions before serving it; it does not include a Web API or hosted notification provider.</p>
+<p><img alt="A workshop registration command flows through its actor, orchestration, durable SQL view, and an authorized reader." src="../assets/diagrams/workshop-application.svg" /></p>
+<h2 id="try-the-code">Try the code</h2>
+<p>Clone the public docs repository and build the example with the .NET 10 SDK:</p>
+<pre><code class="language-sh">git clone https://github.com/Fifty3North/troolio-docs.git
+cd troolio-docs
+dotnet build examples/workshop/Workshop.csproj -c Release
+</code></pre>
+<p>The SQL read path uses <code>RegistrationCardsProjection</code> and <code>SqlRegistrationCards</code>. The optional linked <code>RegistrationDetails</code> view illustrates the resolver API and requires ordered, deduplicated source delivery. Start with the <a href="host-setup.html">host guide</a> to register the assemblies and application services for your chosen path.</p>
+<h2 id="1-give-each-actor-a-responsibility">1. Give each actor a responsibility</h2>
+<p>A registration actor owns one registration's lifecycle. A workshop roster actor owns the registration IDs recorded for one workshop. The UI reads small cards from SQL instead of asking every registration actor for its state.</p>
+<p>This example records a request. A finite seat-capacity invariant would need its own authoritative decision in the workshop actor or a selected multi-participant route. The two-role example alone does not guarantee a seat reservation across stores.</p>
+<h2 id="2-send-intent-with-trusted-context">2. Send intent with trusted context</h2>
+<p>The application allocates a stable registration ID and obtains the user and device from its authenticated boundary. That ID is also the actor key.</p>
+<pre><code class="language-csharp">public static Task RequestAsync(ITroolioClient client, Guid registrationId, Guid workshopId,
+    string displayName, Guid authenticatedUserId, Guid verifiedDeviceId, Guid correlationId)
+{
+    Metadata headers = MessageContext.AtIngress(correlationId, authenticatedUserId, verifiedDeviceId);
+    return client.Tell&lt;IRegistrationActor&gt;(registrationId.ToString(&quot;D&quot;),
+        new RequestRegistration(headers, registrationId, workshopId, displayName));
+}
+</code></pre>
+<p>Keep correlation across the related interaction. Ordinary Troolio dispatch supplies transaction and message relationships as described in <a href="message-metadata.html">metadata</a>. A retry must still be reconciled against the registration's state and the selected route's operation identity when that route is used.</p>
+<h2 id="3-validate-and-record-the-outcome">3. Validate and record the outcome</h2>
+<p>The registration actor delegates decisions to pure domain rules and state changes to event application:</p>
+<pre><code class="language-csharp">public sealed class RegistrationActor : EventSourcedActor&lt;RegistrationState&gt;, IRegistrationActor
+{
+    public RegistrationActor(IStore store, IConfiguration configuration) : base(store, configuration)
+        =&gt; State = RegistrationState.Empty;
+
+    public IEnumerable&lt;Event&gt; Handle(RequestRegistration command)
+    {
+        if (!Guid.TryParse(Id, out Guid actorId) || actorId != command.RegistrationId)
+            throw new ArgumentException(&quot;The actor key must match the registration ID.&quot;);
+        return RegistrationRules.Request(State, command);
+    }
+
+    public IEnumerable&lt;Event&gt; Handle(CancelRegistration command) =&gt; RegistrationRules.Cancel(State, command);
+    public void On(RegistrationRequested e) =&gt; State = State.Apply(e);
+    public void On(RegistrationCancelled e) =&gt; State = State.Apply(e);
+    public RegistrationState Handle(GetRegistration _) =&gt; State;
+}
+</code></pre>
+<p>A valid request produces <code>RegistrationRequested</code>; cancellation produces <code>RegistrationCancelled</code>. The state stores the registration, workshop, attendee, display name, and status. A duplicate request with identical business details returns no new domain event in the ordinary sample; a conflicting reuse of the registration ID is rejected. Selected no-op completion has its own optional capability and is not implied by this example.</p>
+<h2 id="4-react-with-another-actor-command">4. React with another actor command</h2>
+<p>The orchestration listener forwards the event's headers and addresses the workshop roster using the workshop ID carried by the event.</p>
+<pre><code class="language-csharp">[OrchestrationStreamSubscription(typeof(RegistrationActor))]
+public sealed class WorkshopEnrolmentOrchestration : OrchestrationActor
+{
+    public Task On(EventEnvelope&lt;RegistrationRequested&gt; envelope) =&gt;
+        System.ActorOf&lt;IWorkshopRosterActor&gt;(envelope.Event.WorkshopId.ToString(&quot;D&quot;))
+            .Tell(new AddAttendee(envelope.Event.Headers, envelope.Event.WorkshopId,
+                envelope.Event.RegistrationId, envelope.Event.AttendeeId));
+
+    public Task On(EventEnvelope&lt;RegistrationCancelled&gt; envelope) =&gt;
+        System.ActorOf&lt;IWorkshopRosterActor&gt;(envelope.Event.WorkshopId.ToString(&quot;D&quot;))
+            .Tell(new RemoveAttendee(envelope.Event.Headers, envelope.Event.WorkshopId,
+                envelope.Event.RegistrationId));
+}
+</code></pre>
+<p>The roster stores registration IDs rather than incrementing an unqualified count. A repeated add can therefore be recognized. It also records removal tombstones so a late add after cancellation cannot resurrect the entry. It returns the <code>Tell</code> task so the listener's work remains observable to the caller's protocol.</p>
+<p>This is ordinary event-to-command orchestration. For a selected atomic workflow, register the reviewed planning handlers and durable closure/store contracts described in <a href="orchestration.html">orchestration</a> and <a href="atomic-commit.html">atomic commit</a>.</p>
+<h2 id="5-project-a-card-for-readers">5. Project a card for readers</h2>
+<p>A separate listener turns a committed registration event into the view needed by the UI:</p>
+<pre><code class="language-csharp">[ProjectionStreamSubscription(typeof(RegistrationActor))]
+public sealed class RegistrationCardsProjection(IRegistrationCardWriter writer) : ProjectionActor
+{
+    public Task On(EventEnvelope&lt;RegistrationRequested&gt; envelope)
+    {
+        RegistrationCard card = RegistrationCards.From(envelope.Event);
+        return writer.ApplyAsync(card, RegistrationCards.Source(envelope, card), CancellationToken.None);
+    }
+
+    public Task On(EventEnvelope&lt;RegistrationCancelled&gt; envelope)
+    {
+        RegistrationCard card = RegistrationCards.From(envelope.Event);
+        return writer.ApplyAsync(card, RegistrationCards.Source(envelope, card), CancellationToken.None);
+    }
+}
+</code></pre>
+<p>The SQL writer atomically records its source identity and replaces the card only when an appropriate newer source snapshot arrives. It rejects a changed domain payload for a retained source identity. Both event variants carry the fields needed for the card, so this teaching model can ignore an older full snapshot safely. Delta-based projections need stricter ordering and gap recovery.</p>
+<p>Apply <code>schema.sql</code> through the application's migration process and register <code>IRegistrationCardWriter</code> with the host. This writer is an application read-model implementation; it is separate from the framework's selected event transaction store.</p>
+<h2 id="6-read-with-the-callers-access-scope">6. Read with the caller's access scope</h2>
+<p><code>SqlRegistrationCards.GetForUserAsync</code> queries one registration ID and the current authenticated attendee ID in SQL. Unauthorized and absent rows both yield no card. A staff view would need a separate reviewed authorization rule and bounded query.</p>
+<p>A command can finish before the card catches up. Represent that state honestly in the UI, and use <a href="realtime-updates.html">realtime refresh hints</a> to trigger another authorized read after the projection commits.</p>
+<h2 id="7-add-effects-through-durable-work">7. Add effects through durable work</h2>
+<p>Creating a notification fact in a projection is different from sending a confirmation through a provider. Keep the provider request behind durable intent state, a stable idempotency key, and recovery. Replaying the registration actor or rebuilding the SQL card should not resend confirmations.</p>
+<p>Follow <a href="notifications-and-background-work.html">notifications and background work</a> for that design. Then study <a href="projection-design.html">projection design</a>, <a href="read-model-design.html">read models</a>, and <a href="idempotency-and-ordering.html">idempotency</a> before extending this example.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

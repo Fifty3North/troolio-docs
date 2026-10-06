@@ -1,0 +1,63 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Recover missed deliveries and evolve views with bounded background work and durable progress."><title>Projection catch-up and rebuilds · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a class="current" aria-current="page" href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Operations</div><h1 id="projection-catch-up-and-rebuilds">Projection catch-up and rebuilds</h1>
+<p>A projection can fall behind after a worker stops, SQL becomes unavailable, or a new view is introduced. Treat each case as explicit work with a source, destination, progress record, and failure policy. Restoring an actor's state does not repair all its read models automatically.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#distinguish-the-tasks">Distinguish the tasks</a></li><li><a href="#bound-one-work-unit">Bound one work unit</a></li><li><a href="#keep-serving-and-recovery-separate">Keep serving and recovery separate</a></li><li><a href="#introduce-a-projection-version">Introduce a projection version</a></li><li><a href="#invalid-data-and-access-changes">Invalid data and access changes</a></li><li><a href="#retain-useful-progress">Retain useful progress</a></li></ul></nav></details>
+<h2 id="distinguish-the-tasks">Distinguish the tasks</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Delivery recovery</td>
+<td>Retry committed handoff work that a consumer has not acknowledged.</td>
+</tr>
+<tr>
+<td>Catch-up</td>
+<td>Advance an existing projection from a known source cursor.</td>
+</tr>
+<tr>
+<td>Rebuild</td>
+<td>Populate a new version of a read model from verified history.</td>
+</tr>
+<tr>
+<td>Data repair</td>
+<td>Correct a specific invalid or missing view under an audited application policy.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The same pure mapper can support more than one task, but a rebuild should not run business orchestration or external notification providers just because it reads historical events.</p>
+<h2 id="bound-one-work-unit">Bound one work unit</h2>
+<p>The example worker reads one page of verified rows, applies each idempotently, and advances its partition cursor. The application interfaces own verified source reads and durable compare-and-swap progress.</p>
+<pre><code class="language-csharp">public static class ProjectionRepair
+{
+    public static async Task ProcessPageAsync(string partition, IRepairFeed feed,
+        IRegistrationCardWriter writer, IRepairProgress progress, CancellationToken cancellationToken)
+    {
+        string? cursor = await progress.LoadAsync(partition, cancellationToken);
+        RepairPage page = await feed.ReadAsync(partition, cursor, 100, cancellationToken);
+        if (page.Items.Count &gt; 100) throw new InvalidDataException(&quot;Repair page exceeded its bound.&quot;);
+        foreach (RepairItem item in page.Items)
+            await writer.ApplyAsync(item.Card, item.Source, cancellationToken);
+        // A crash before this point repeats the page; the writer deduplicates source records.
+        if (!await progress.AdvanceAsync(partition, cursor, page.NextCursor, cancellationToken))
+            throw new InvalidOperationException(&quot;Another worker advanced this repair partition.&quot;);
+    }
+}
+</code></pre>
+<p>A crash before cursor advancement repeats the page. The projection writer's retained source identities make that repetition safe. The compare-and-swap failure tells the worker that another process advanced the partition; it cannot silently overwrite that progress.</p>
+<p>This helper is one bounded work unit. A host scheduler supplies worker lifecycle, admission, leases where needed, time limits, backoff, and metrics. The interface implementations must check that the source and cursor belong to the expected partition and that a returned page cannot exceed its bound.</p>
+<h2 id="keep-serving-and-recovery-separate">Keep serving and recovery separate</h2>
+<p>Avoid startup routines that scan every registration to reconstruct global read state. Their cost grows with application history, and one bad stream can delay global availability.</p>
+<p>Startup can check required infrastructure and establish consumers. Repair workers can advance affected partitions in the background. The relevant endpoint should know whether its view is ready, catching up, unavailable, or quarantined. Do not represent missing projection data as a confidently empty catalogue.</p>
+<h2 id="introduce-a-projection-version">Introduce a projection version</h2>
+<p>For a substantial change, create a new consumer identity and target schema, such as a second registration-card version. Populate it from verified source history, catch up with live traffic, compare the query behavior, then promote the readers. Keep a rollback or forward-fix plan based on compatible schemas and retained source data.</p>
+<p>One useful cutover records a source boundary, backfills through that boundary, applies later live work, and checks the remaining lag before switching readers. The mechanism must fit your provider: a multi-stream application may need per-stream positions or committed operation groups rather than one global integer.</p>
+<p>Do not clear an existing consumer's inbox and point the same identity at a new schema without deciding what delayed deliveries and old acknowledgements mean.</p>
+<h2 id="invalid-data-and-access-changes">Invalid data and access changes</h2>
+<p>Transient connection failures can be retried. A source that cannot be decoded into the expected event schema needs an identifiable quarantine outcome and repair decision. Continue independent partitions where the provider permits it.</p>
+<p>Current deletion and access fences also apply to rebuilt views. Historical ownership alone does not grant a restored view permission to expose deleted or inaccessible data. Coordinate projection repair with the application's retention and erasure policy.</p>
+<h2 id="retain-useful-progress">Retain useful progress</h2>
+<p>Track the projection version, source partition, cursor, attempt count, last successful advance, and failure category. Keep private domain payloads out of routine progress logs. Monitor the oldest pending work as well as counts; a small permanently stuck partition can be more serious than a briefly large queue.</p>
+<p>Continue with <a href="replay-and-live-events.html">replay and live events</a>, <a href="projection-design.html">projection design</a>, and <a href="observability.html">observability</a>.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

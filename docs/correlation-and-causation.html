@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Follow a branching workflow and distinguish diagnostics from durable retry identity."><title>Correlation and causation · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a class="current" aria-current="page" href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="correlation-and-causation">Correlation and causation</h1>
+<p>Correlation groups a story. Causation connects its individual steps. If a customer requests a workshop registration, that one interaction can cause a roster change, a read-model update, and a confirmation. They can share a correlation ID while each message has its own identity and immediate parent.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#walk-through-the-chain">Walk through the chain</a></li><li><a href="#branching-is-normal">Branching is normal</a></li><li><a href="#define-where-a-story-ends">Define where a story ends</a></li><li><a href="#retries-need-their-own-identity-rules">Retries need their own identity rules</a></li><li><a href="#correlation-versus-distributed-traces">Correlation versus distributed traces</a></li></ul></nav></details>
+<p>Without correlation, the same action looks like unrelated log entries. Without causation, a search finds related entries but cannot tell which message triggered which follow-up.</p>
+<p><img alt="One correlation groups a workflow; causation links each message to its direct parent." src="../assets/diagrams/message-lineage.svg" /></p>
+<h2 id="walk-through-the-chain">Walk through the chain</h2>
+<p>Consider this simplified runtime sequence. The letters represent IDs, not domain values.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Message ID</th>
+<th>Causation ID</th>
+<th>Correlation ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Runtime handles <code>RequestRegistration</code></td>
+<td>A</td>
+<td>Root context</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Actor produces <code>RegistrationRequested</code></td>
+<td>B</td>
+<td>A</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Roster actor handles <code>AddAttendee</code></td>
+<td>C</td>
+<td>B</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Roster actor produces <code>AttendeeAdded</code></td>
+<td>D</td>
+<td>C</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Application creates confirmation work</td>
+<td>E</td>
+<td>Its triggering message</td>
+<td>R</td>
+</tr>
+</tbody>
+</table></div>
+<p>The ordinary actor pipeline assigns command and event IDs as described in <a href="message-metadata.html">message metadata</a>. This table illustrates those semantic roles; delivery tracing can add further processing steps. Log both correlation and causation so a delayed or repeated message can be understood in context.</p>
+<h2 id="branching-is-normal">Branching is normal</h2>
+<p>One event can have several consumers. A projection updates a registration card while an orchestration changes another actor. Those branches have a shared ancestor. Causation refers to the immediate parent, so copying a correlation ID into <code>CausationId</code> loses the structure of the workflow.</p>
+<p>For an application-owned message outside the actor dispatch protocol, a helper can make a child context explicitly:</p>
+<pre><code class="language-csharp">public static Metadata Child(Metadata parent) =&gt; parent with
+{
+    MessageId = Guid.NewGuid(),
+    CausationId = parent.MessageId
+};
+</code></pre>
+<p>The helper preserves correlation, user, device, and transaction context, creates the child message ID, and records the parent's ID. For an ordinary Troolio internal command, forward the triggering event's headers instead; the framework establishes the child command context during dispatch. Do not apply both conventions without understanding that extra processing hop.</p>
+<h2 id="define-where-a-story-ends">Define where a story ends</h2>
+<p>A correlation scope is an application decision. A button click and its immediate outcomes make a useful scope. A recurring reminder tomorrow can start another scope and retain a causal reference to the scheduled trigger. A long-running business workflow may keep a separate workflow ID across many such interactions.</p>
+<p>Avoid grouping every action by the same user under one permanent correlation ID. Support queries become noisy, and unrelated user actions look causally related. Conversely, allocating a fresh correlation ID at every actor hop makes one interaction difficult to follow.</p>
+<h2 id="retries-need-their-own-identity-rules">Retries need their own identity rules</h2>
+<p>Suppose a client times out after the event commit. Sending a new request with a new correlation ID does not establish whether it should append again. Reusing the old correlation ID does not make it idempotent either. The decision belongs to the command's business identity and, for a selected route, its verified operation identity and exact request/batch evidence.</p>
+<p>A registration actor can recognize a retry of the same registration details. A projection can recognize the same source stream/version. An effect provider can recognize a stable idempotency key. These mechanisms preserve correctness even when logs contain several attempts or tracing derives new processing message IDs.</p>
+<h2 id="correlation-versus-distributed-traces">Correlation versus distributed traces</h2>
+<p><code>CorrelationId</code> is a Troolio/application GUID. A W3C trace contains a trace ID and span IDs managed by the tracing system. They can be linked through tags and log scopes, but setting a correlation ID does not start an <code>Activity</code>, propagate <code>traceparent</code>, or create a tracing exporter.</p>
+<p>Keep both when they serve different audiences: the application correlation ID connects the business interaction, while spans show execution timing and service calls. Use <a href="observability.html">observability</a> for the C# instrumentation pattern.</p>
+<p>Continue with <a href="orchestration-workflows.html">orchestration workflows</a>, <a href="idempotency-and-ordering.html">idempotency and ordering</a>, and <a href="notifications-and-background-work.html">notifications</a>.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

@@ -1,0 +1,71 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Choose durable source identities, handle duplicates, and distinguish snapshot from delta projections."><title>Idempotency and ordering · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a class="current" aria-current="page" href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Patterns</div><h1 id="idempotency-and-ordering">Idempotency and ordering</h1>
+<p>A distributed consumer can see the same work more than once. It may also see a later source before an earlier one, depending on the provider, subscriptions, and recovery path. Decide what identity establishes a duplicate and what ordering your calculation requires.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#three-identities-at-three-boundaries">Three identities at three boundaries</a></li><li><a href="#a-projection-source-record">A projection source record</a></li><li><a href="#full-state-snapshots-and-deltas-need-different-rules">Full-state snapshots and deltas need different rules</a></li><li><a href="#prevent-late-resurrection-in-an-actor-workflow">Prevent late resurrection in an actor workflow</a></li><li><a href="#reconcile-uncertain-command-outcomes">Reconcile uncertain command outcomes</a></li><li><a href="#provider-behavior-still-matters">Provider behavior still matters</a></li></ul></nav></details>
+<p>“Use the same correlation ID” is not a duplicate rule. Many distinct messages in one workflow share that ID. Likewise, <code>EventEnvelope.Id</code> identifies an actor, so all its events can have the same value.</p>
+<h2 id="three-identities-at-three-boundaries">Three identities at three boundaries</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Boundary</th>
+<th>Identity to preserve</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command operation</td>
+<td>Business request key and the selected route's verified operation/request identity.</td>
+</tr>
+<tr>
+<td>Projection source</td>
+<td>Consumer identity plus the provider's exact source stream and version/position.</td>
+</tr>
+<tr>
+<td>External effect</td>
+<td>Stable effect identity and the provider's durable idempotency key.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Use diagnostic message IDs to investigate processing. Trace paths can derive delivery headers, so those IDs are not a substitute for a stable persisted source locator.</p>
+<h2 id="a-projection-source-record">A projection source record</h2>
+<p>The example retains the source identity alongside the domain comparison hash:</p>
+<pre><code class="language-csharp">public sealed record RegistrationCard(Guid RegistrationId, Guid WorkshopId,
+    Guid AttendeeId, string DisplayName, string Status);
+
+public sealed record ProjectionSource(string Consumer, string Stream, ulong Version, string DomainHash);
+public enum ApplyOutcome { Applied, Duplicate, OlderSnapshot }
+
+public interface IRegistrationCardWriter
+{
+    Task&lt;ApplyOutcome&gt; ApplyAsync(RegistrationCard card, ProjectionSource source,
+        CancellationToken cancellationToken);
+}
+</code></pre>
+<p>A SQL writer commits the inbox and view changes together. If it crashes before commit, neither is durable and the source can be retried. If it crashes after commit, the retained inbox lets the retry return the completed outcome.</p>
+<p>Compare content when the same source identity is reused. A different payload at the same stream/version should not silently overwrite the view. The sample uses a domain-only hash so a diagnostic header change does not create a false content conflict. Source authorization and exact persisted-byte validation belong to the selected route/provider where required.</p>
+<h2 id="full-state-snapshots-and-deltas-need-different-rules">Full-state snapshots and deltas need different rules</h2>
+<p>The registration card events contain all fields needed to represent the current card. The writer can keep the newer snapshot and record an older input as processed without replacing the current row.</p>
+<p>A delta event such as “add one attendee to the total” is different. Skipping an older delta loses a contribution. An ordered delta consumer needs its preceding checkpoint and a verified way to recover missing inputs. Do not apply a “largest version wins” strategy to every event type.</p>
+<p>Version arithmetic also depends on the source contract. A subscriber may filter out events, and framework creation events may not be published to the same listener. A numeric gap is therefore not universally evidence of a missing domain event. Define what a consumer expects to receive from that provider.</p>
+<h2 id="prevent-late-resurrection-in-an-actor-workflow">Prevent late resurrection in an actor workflow</h2>
+<p>An actor that removes an entry from a set can accept an old add again if it has forgotten that removal. The roster sample retains removed registration IDs and treats their cancellation as terminal.</p>
+<pre><code class="language-csharp">public IEnumerable&lt;Event&gt; Handle(RemoveAttendee command)
+{
+    if (!Guid.TryParse(Id, out Guid workshopId) || workshopId != command.WorkshopId)
+        throw new ArgumentException(&quot;Workshop key mismatch.&quot;);
+    return removed.Contains(command.RegistrationId)
+        ? [] : [new AttendeeRemoved(command.Headers, command.RegistrationId)];
+}
+
+public void On(AttendeeAdded e) =&gt; attendees = attendees.Add(e.RegistrationId, e.AttendeeId);
+public void On(AttendeeRemoved e)
+{
+    attendees = attendees.Remove(e.RegistrationId);
+    removed = removed.Add(e.RegistrationId);
+}
+</code></pre>
+<p>The example does not reuse a registration ID after cancellation. If your domain supports a new attempt, model its attempt ID or generation explicitly. Retain duplicate and lifecycle records for as long as delayed work can still arrive.</p>
+<h2 id="reconcile-uncertain-command-outcomes">Reconcile uncertain command outcomes</h2>
+<p>A timeout can happen after events committed. Query the authoritative operation or actor state before deciding whether another command is safe. A new operation ID can represent another business action, so inventing one on every retry can create duplicate work.</p>
+<p>The <a href="atomic-commit.html">atomic commit</a> contract compares the original request and frozen batch on retries. Durable no-op completion and effect completion have separate contextual requirements. Do not infer these from an ordinary empty event list.</p>
+<h2 id="provider-behavior-still-matters">Provider behavior still matters</h2>
+<p>Orleans stream subscription operations and event delivery guarantees depend on the chosen provider and configured path. Read <a href="https://learn.microsoft.com/en-us/dotnet/orleans/streaming/">the streaming documentation</a> together with the provider contract, and prove the application's consumer behavior under redelivery and process loss.</p>
+<p>Continue with <a href="recovery.html">recovery</a>, <a href="projection-catchup.html">projection catch-up</a>, and <a href="external-effects.html">external effects</a>.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>
