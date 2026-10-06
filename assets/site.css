@@ -7,3 +7,11 @@
 @media(min-width:651px){.side{max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-color:#52677a transparent;scrollbar-width:thin}}
 
 .doc-nav-toggle{display:none}.article a.card,.article a.card *{text-decoration:none!important}@media(max-width:650px){.doc-nav-toggle{display:flex;width:100%;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:9px;background:#111d2d;color:var(--text);padding:10px 12px;margin-top:8px;cursor:pointer}.side .doc-nav{display:none}.side .doc-nav.open{display:grid}}
+
+.article img{display:block;max-width:100%;height:auto;margin:24px 0 28px;border-radius:14px}.home-diagram{display:block;width:100%;height:auto;margin-top:32px;border-radius:14px}a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+.journeys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:25px 0 50px}.journeys>a{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:14px;padding:26px;background:linear-gradient(140deg,#132335,#111827);text-decoration:none!important}.journeys>a:hover{border-color:var(--cyan)}.journeys .num{color:var(--cyan);font:600 .74rem JetBrains Mono,monospace;letter-spacing:.1em}.journeys strong{font:700 1.45rem Space Grotesk,sans-serif;color:var(--text)}.journeys span{color:var(--muted)}.journeys em{color:var(--cyan);font-style:normal;margin-top:8px}@media(max-width:650px){.journeys{grid-template-columns:1fr}}
+
+.article :not(pre)>code{overflow-wrap:anywhere;word-break:break-word}
+
+@media(max-width:650px){.article p:has(>img){max-width:100%;overflow-x:auto;border-radius:14px}.article p:has(>img)::before{content:"Scroll to explore diagram →";display:block;padding:7px 10px;color:var(--muted);font-size:.78rem}.article p:has(>img) img{width:760px;max-width:none;margin:0 0 8px}.home-diagram-scroll{overflow-x:auto}.home-diagram{width:760px;max-width:none}}
