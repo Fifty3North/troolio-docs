@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Checks for a production host and providers."><title>Deployment checklist · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><div class="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="first-actor.html">Build your first actor</a><a href="host-setup.html">Configure a host</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="troubleshooting.html">Troubleshooting</a><a class="current" aria-current="page" href="deployment-checklist.html">Deployment checklist</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Operations</div><h1 id="deployment-checklist">Deployment checklist</h1>
+<p>Use this checklist when promoting a Troolio host that serves persistent actor traffic.</p>
+<h2 id="build-and-compatibility">Build and compatibility</h2>
+<ul>
+<li>Pin all installed Troolio packages to 10.0.6 and use a compatible .NET 10 / Orleans 10 host.</li>
+<li>Register the actor assemblies and the selected store/serializer explicitly.</li>
+<li>Run package restore and integration tests against the same provider versions used in production.</li>
+</ul>
+<h2 id="authority-and-storage">Authority and storage</h2>
+<ul>
+<li>Authenticate and authorize ingress, actor targets, and selected routes.</li>
+<li>Apply schema migrations and verify database transaction, locking, stream naming, and indexes.</li>
+<li>Set the route epoch, reviewed deployment fingerprint, and serving silo/broker admission.</li>
+<li>Define event retention, deletion fences, receipt lifetime, backups, and restoration drills.</li>
+</ul>
+<h2 id="work-after-commit">Work after commit</h2>
+<ul>
+<li>Configure projection consumers, delivery workers, and retry scheduling.</li>
+<li>Register external-effect providers with durable idempotency and pending-intent recovery.</li>
+<li>Monitor queue lag, stale route rejects, append conflicts, operation receipts, and broker journals.</li>
+<li>Test crashes before and after event append, receipt creation, projection claim, effect dispatch, and broker handoff.</li>
+</ul>
+<p>An adapter package supplies code, not a production route by itself. The host owns the policies and operational controls. Start with <a href="host-setup.html">host setup</a>, then <a href="packages.html">packages</a> and <a href="recovery.html">recovery</a>.</p>
+<blockquote>
+<p><strong>Source note:</strong> package contracts and acceptance evidence in <code>releases/10.0.6/</code>.</p>
+</blockquote></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

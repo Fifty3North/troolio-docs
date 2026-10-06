@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Persistence contracts and event formats."><title>Stores and serialization · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><div class="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="first-actor.html">Build your first actor</a><a href="host-setup.html">Configure a host</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a class="current" aria-current="page" href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Foundations</div><h1 id="stores-and-serialization">Stores and serialization</h1>
+<p><code>IStore</code> is the base event-stream contract. It appends a collection of events at an expected stream version and reads all, a range, the last event, or one event. A store implementation determines durability, concurrency behavior, and its deployment requirements.</p>
+<h2 id="store-choices">Store choices</h2>
+<table>
+<thead>
+<tr>
+<th>Store</th>
+<th>Intended use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>InMemoryStore</code></td>
+<td>Local examples and tests; state disappears with the process.</td>
+</tr>
+<tr>
+<td><code>FileSystemStore</code></td>
+<td>Local filesystem experiments; review filesystem semantics before relying on it.</td>
+</tr>
+<tr>
+<td><code>Troolio.SqlServer</code></td>
+<td>SQL Server adapters with explicit schema, transaction, and recovery setup.</td>
+</tr>
+<tr>
+<td><code>Troolio.KurrentDB</code></td>
+<td>KurrentDB append and named-stream integration with separate route and recovery contracts.</td>
+</tr>
+</tbody>
+</table>
+<p>The two bundled Core stores do not grant the selected atomic transaction capability. That route requires <code>IAtomicEventTransactionStore</code> and, when fenced, <code>IRouteFencedAtomicEventTransactionStore</code> with the required capability flags. <a href="atomic-commit.html">Atomic commit</a> explains the full contract.</p>
+<h2 id="serializer-options">Serializer options</h2>
+<p>Core includes <code>JsonEventSerializer</code>, <code>MessagePackEventSerializer</code>, and <code>MessagePackLz4EventSerializer</code> behind <code>IEventSerializer</code>. Choose one deliberately, test round trips of your domain event types, and retain backward readers for any stored format you have already written. Changing serializers without migration can make historical replay fail.</p>
+<p>Orleans serialization attributes on message records serve actor transport. They do not by themselves define the bytes your chosen event store writes. The store's serializer and the application event schema must agree.</p>
+<h2 id="operational-contract">Operational contract</h2>
+<p>The store must enforce expected versions and return an append count consistent with what it committed. For the selected route, the store must atomically commit participant events, required projection handoffs, ancillary writes, and completion evidence. A <code>IStore</code> implementation alone does not promise that stronger property.</p>
+<blockquote>
+<p><strong>Source note:</strong> <code>Troolio.Core/Stores/IStore.cs</code>, <code>InMemoryStore.cs</code>, <code>FileSystemStore.cs</code>, <code>Stores/Serialization/</code>, and <code>Stores/IAtomicEventTransactionStore.cs</code>.</p>
+</blockquote></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

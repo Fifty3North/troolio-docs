@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Retries and pending work across providers."><title>Recovery · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><div class="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="first-actor.html">Build your first actor</a><a href="host-setup.html">Configure a host</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a class="current" aria-current="page" href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Transactions</div><h1 id="recovery-and-retries">Recovery and retries</h1>
+<p>A retry must preserve the original operation identity and exact serialized event batch. The atomic store returns its prior receipt only after matching request identity, participant bytes, route fence, current ownership, and deletion fences. Changing any of those inputs is a conflict, not a new attempt at the same operation.</p>
+<h2 id="recovery-surfaces">Recovery surfaces</h2>
+<table>
+<thead>
+<tr>
+<th>Pending work</th>
+<th>Recovery contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Selected command</td>
+<td>Operation recovery checks current route admission and persisted completion evidence before resuming.</td>
+</tr>
+<tr>
+<td>Event-only subscriber</td>
+<td>Delivery state and claim leases identify work that can be retried after a worker exits.</td>
+</tr>
+<tr>
+<td>External effect</td>
+<td><code>IExternalEffectIntentStore.ListPendingAsync</code> and <code>ExternalEffectDispatcher.RecoverPendingAsync</code> resume work with the original idempotency key.</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td>Provider queue or marker state retains a handoff until the consumer applies and acknowledges it.</td>
+</tr>
+</tbody>
+</table>
+<p>Provider implementations add their own journals, route pins, and retention rules. SQL Server keeps transaction evidence in its database. KurrentDB-based routes may coordinate KurrentDB and SQL state through a broker journal; this is not a distributed transaction across both systems.</p>
+<h2 id="incident-handling">Incident handling</h2>
+<p>First establish the committed receipt or current stream head. Then inspect pending delivery, effect, and projection records. Preserve operation IDs, request identities, route epochs, and provider receipts while investigating. Do not delete evidence merely to unblock a retry. See <a href="troubleshooting.html">troubleshooting</a> and <a href="deployment-checklist.html">deployment checklist</a>.</p>
+<blockquote>
+<p><strong>Source note:</strong> <code>Troolio.Core/Stores/IAtomicEventTransactionStore.cs</code>, <code>Transactions/IEventOnlyOrchestrationDelivery.cs</code>, <code>ExternalEffectIntent.cs</code>; provider recovery types in <code>Troolio.SqlServer/</code>, <code>Troolio.KurrentDB/</code>, and <code>Troolio.KurrentDB.SqlServer/</code>.</p>
+</blockquote></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

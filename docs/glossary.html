@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Terms used across Troolio guides."><title>Glossary · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><div class="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="first-actor.html">Build your first actor</a><a href="host-setup.html">Configure a host</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a class="current" aria-current="page" href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a></div></aside><main class="article"><div class="kicker">Documentation / Reference</div><h1 id="glossary">Glossary</h1>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actor path</td>
+<td>Stable identity of one actor, used in commands, ownership checks, and transaction participants.</td>
+</tr>
+<tr>
+<td>Stream</td>
+<td>Ordered event history for one stream name and version sequence.</td>
+</tr>
+<tr>
+<td>Event</td>
+<td>Immutable fact produced by a command and later replayed to reconstruct state.</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td>Consumer that turns committed events into a read-oriented view.</td>
+</tr>
+<tr>
+<td>Handoff</td>
+<td>Durable marker or queue record connecting committed events to a projection consumer.</td>
+</tr>
+<tr>
+<td>Operation ID</td>
+<td>Stable identifier for one command attempt and its retries.</td>
+</tr>
+<tr>
+<td>Request identity</td>
+<td>Canonical SHA-256 digest of the original command identity and payload.</td>
+</tr>
+<tr>
+<td>Participant</td>
+<td>Actor/stream, expected version, and events included in one closed atomic batch.</td>
+</tr>
+<tr>
+<td>Route fence</td>
+<td>Route key, epoch, and deployment fingerprint checked during selected commit.</td>
+</tr>
+<tr>
+<td>Completion receipt</td>
+<td>Durable evidence of what committed for an operation.</td>
+</tr>
+<tr>
+<td>Event-only closure</td>
+<td>Bounded planning of causal subscriber events before a selected commit.</td>
+</tr>
+<tr>
+<td>External-effect intent</td>
+<td>Durable record of a side effect to perform after event commit with a stable idempotency key.</td>
+</tr>
+<tr>
+<td>Broker journal</td>
+<td>Durable evidence coordinating a KurrentDB write broker with SQL state.</td>
+</tr>
+</tbody>
+</table>
+<p>Follow <a href="selected-command-route.html">selected command route</a> for the full request path or <a href="recovery.html">recovery</a> for retry semantics.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>
