@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Troolio.Core" Version="10.0.6" />
-    <PackageReference Include="Troolio.SqlServer" Version="10.0.6" />
+    <PackageReference Include="Troolio.Core" Version="10.0.8" />
+    <PackageReference Include="Troolio.SqlServer" Version="10.0.8" />
     <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.0.0" />
   </ItemGroup>
 </Project>

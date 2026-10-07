@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Map live actor events to relational read models with EF Core 10."><title>EF Core projections · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a><span class="group">Samples</span><a href="calculator-sample.html">Run the Calculator sample</a><a href="todo-sample.html">Build the ToDo API</a><a href="shopping-sample.html">Explore Shopping List</a><span class="group">Extensions</span><a class="current" aria-current="page" href="ef-projections.html">EF Core projections</a><a href="redis-projections.html">Redis projections</a><a href="marten-store.html">Marten event storage</a><a href="eventstore-store.html">Ordinary gRPC event storage</a></div></aside><main class="article"><div class="kicker">Documentation / Extensions</div><h1 id="ef-core-projections">EF Core projections</h1>
+<p>Apply live Troolio events to relational read models with Entity Framework Core 10. Requires .NET 10, Troolio.Core 10.0.8 and an EF 10 provider selected by your application.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#define-the-read-model">Define the read model</a></li><li><a href="#map-and-apply-a-live-event">Map and apply a live event</a></li><li><a href="#update-and-delete">Update and delete</a></li><li><a href="#recovery-and-authorization">Recovery and authorization</a></li><li><a href="#follow-a-complete-application">Follow a complete application</a></li></ul></nav></details>
+<pre><code class="language-bash">dotnet add package Troolio.Projection.EntityFramework --version 10.0.2
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.12
+</code></pre>
+<h2 id="define-the-read-model">Define the read model</h2>
+<p>A projection is a derived view of events. A read model stores the fields needed by a query; it is separate from the actor's in-memory state.</p>
+<pre><code class="language-csharp">public sealed class TaskRow
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = &quot;&quot;;
+}
+
+public sealed class TaskDb(DbContextOptions&lt;TaskDb&gt; options) : DbContext(options)
+{
+    public DbSet&lt;TaskRow&gt; Tasks =&gt; Set&lt;TaskRow&gt;();
+}
+</code></pre>
+<p>Register a scoped context in the Troolio host's service callback. The adapter creates a fresh scope for each write. Apply database migrations explicitly during deployment; host readiness does not replay every actor.</p>
+<pre><code class="language-csharp">services.AddDbContext&lt;TaskDb&gt;(options =&gt;
+    options.UseSqlite(&quot;Data Source=task-readmodels.db&quot;));
+</code></pre>
+<h2 id="map-and-apply-a-live-event">Map and apply a live event</h2>
+<p>The historical <code>EntityFrameworkBatchedProjection</code> name is retained. Processing now awaits the database commit. Mapping or database failures reach the caller instead of disappearing into a memory queue.</p>
+<pre><code class="language-csharp">[GenerateSerializer]
+public sealed record TaskCreated(
+    [property: Id(0)] Guid TaskId,
+    [property: Id(1)] string Title,
+    Metadata Headers) : Event(Headers);
+
+public interface ITaskProjection : IProjectionActor { }
+
+[ProjectionStreamSubscription(&quot;TaskActor&quot;)]
+public sealed class TaskProjection :
+    EntityFrameworkBatchedProjection&lt;TaskRow, TaskDb&gt;, ITaskProjection
+{
+    protected override void SetupMappings()
+    {
+        Mapper.AddMap&lt;EventEnvelope&lt;TaskCreated&gt;, Task&lt;EventEntityCreate&lt;TaskRow&gt;&gt;&gt;(e =&gt;
+            Task.FromResult(new EventEntityCreate&lt;TaskRow&gt;(e.Event.TaskId,
+                new TaskRow { Id = e.Event.TaskId, Title = e.Event.Title })));
+    }
+
+    public Task On(EventEnvelope&lt;TaskCreated&gt; e) =&gt; Create(e);
+}
+</code></pre>
+<p>The obsolete <code>EFPersistance</code> base and its volatile queue helper are removed. Use the event-to-change mappings above when migrating. A projection interface must inherit <code>IProjectionActor</code>. Update older interfaces that inherited only <code>IActor</code>. Register the projection's assembly with the Troolio host. The framework attaches and resumes its implicit projection-stream subscription. Actor replay restores actor state only; it must not write these rows.</p>
+<h2 id="update-and-delete">Update and delete</h2>
+<p><code>Create</code> leaves an existing primary-key row unchanged. A repeated create cannot overwrite a later update. <code>Delete</code> tolerates an already absent row. <code>Update</code> requires an existing row and propagates a missing-row error.</p>
+<pre><code class="language-csharp">Mapper.AddMap&lt;EventEnvelope&lt;TaskRenamed&gt;, Task&lt;EventEntityUpdate&lt;TaskRow&gt;&gt;&gt;(e =&gt;
+    Task.FromResult(new EventEntityUpdate&lt;TaskRow&gt;(e.Event.TaskId,
+        new Action&lt;TaskRow&gt;[] { row =&gt; row.Title = e.Event.Title })));
+
+Mapper.AddMap&lt;EventEnvelope&lt;TaskDeleted&gt;, Task&lt;EventEntityDelete&lt;TaskRow&gt;&gt;&gt;(e =&gt;
+    Task.FromResult(new EventEntityDelete&lt;TaskRow&gt;(e.Event.TaskId)));
+// Corresponding event handlers await Update(e) and Delete(e).
+</code></pre>
+<p><code>AddItem</code> and <code>RemoveItem</code> map <code>EventEntityCollection&lt;TEntity,TChildEntity&gt;</code> and load the collection before changing membership. Models need a single GUID primary key for these helpers. <code>ProcessNow</code>/<code>Flush</code> remain compatibility barriers; there is no pending batch timer to flush.</p>
+<h2 id="recovery-and-authorization">Recovery and authorization</h2>
+<p>Awaited writes provide correct completion and failure reporting. This generic adapter does not atomically commit an inbox, source checkpoint or dispatch outbox with domain events. For durable recovery, use application-owned transactions and deduplicate by source stream/version, not envelope actor ID or diagnostic message IDs. Bound repair work by stream or partition. Ordinary memory streams alone do not recover missed deliveries after a process crash.</p>
+<p>Read-side endpoints must check the current authenticated user's access before returning rows. Metadata user IDs describe event origin; they are not proof of the current caller's permission.</p>
+<h2 id="follow-a-complete-application">Follow a complete application</h2>
+<p><a href="todo-sample.html">The ToDo API</a> contains runnable commands, events, SQLite configuration and projection mappings. <a href="shopping-sample.html">Shopping List</a> adds separate list, item and membership projections, plus authorized catalog queries. Neither application reconstructs its catalog by activating every actor.</p>
+<p><img alt="A live event updates a query view while replay restores only actor state" src="../assets/diagrams/samples.svg" /></p>
+<h3 id="source-position-and-retries">Source position and retries</h3>
+<p><code>EventEnvelope.Id</code> is the source actor key. When you build a durable inbox, use the source stream and version to identify an event:</p>
+<pre><code class="language-csharp">var sourceKey = (envelope.Stream, envelope.Version);
+// In one application-owned database transaction:
+// 1. Reject a conflicting previously recorded source payload.
+// 2. Apply the event to the read model if it has not been applied.
+// 3. Record the source key and commit.
+</code></pre>
+<p>A subscription may filter event types, so received versions need not be consecutive. Do not infer a missing required event from a version gap without knowing the source's subscription contract. Keep inbox identity separate from <code>CorrelationId</code> and <code>MessageId</code>, which describe a message journey.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

@@ -1,0 +1,206 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Follow HTTP commands, pure replay and durable SQLite read models."><title>Build the ToDo API · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a><span class="group">Samples</span><a href="calculator-sample.html">Run the Calculator sample</a><a class="current" aria-current="page" href="todo-sample.html">Build the ToDo API</a><a href="shopping-sample.html">Explore Shopping List</a><span class="group">Extensions</span><a href="ef-projections.html">EF Core projections</a><a href="redis-projections.html">Redis projections</a><a href="marten-store.html">Marten event storage</a><a href="eventstore-store.html">Ordinary gRPC event storage</a></div></aside><main class="article"><div class="kicker">Documentation / Samples</div><h1 id="todo-actors-events-and-durable-sql-reads">ToDo: actors, events and durable SQL reads</h1>
+<p>A beginner-friendly .NET 10 application using actual Troolio actors. Run the API, open its browser page, create a todo and complete it. Each todo owns an event stream. Live committed events update a SQLite read model through the EF projection extension. Queries read SQLite directly.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#run-without-docker">Run without Docker</a></li><li><a href="#http-walkthrough">HTTP walkthrough</a></li><li><a href="#understand-the-code">Understand the code</a></li><li><a href="#identity-and-metadata">Identity and metadata</a></li><li><a href="#change-event-storage">Change event storage</a></li><li><a href="#explore-the-complete-source">Explore the complete source</a></li></ul></nav></details>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Troolio.Core</code></td>
+<td>Typed event-sourced actors, metadata, hosting and development event stores</td>
+</tr>
+<tr>
+<td><code>Troolio.Projection.EntityFramework</code></td>
+<td>Awaited live relational projection operations</td>
+</tr>
+<tr>
+<td><code>Troolio.Stores.EventStore</code></td>
+<td>Optional gRPC event persistence with KurrentDB</td>
+</tr>
+<tr>
+<td><code>Microsoft.EntityFrameworkCore.Sqlite</code></td>
+<td>Durable local read-model database</td>
+</tr>
+<tr>
+<td><code>Microsoft.Orleans.Sdk</code></td>
+<td>Build-time message serialization and actor code generation</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="run-without-docker">Run without Docker</h2>
+<p>Install the .NET 10 SDK, then from the repository root:</p>
+<pre><code class="language-bash">dotnet run --project Sample/ToDo.EventStoreEfApi --urls http://localhost:5080
+</code></pre>
+<p>Open <strong>http://localhost:5080</strong>. <code>wwwroot/index.html</code> is the browser client. The default <code>FileSystem</code> event store writes to <code>todo-events</code> in the process working directory; SQLite writes <code>todo-readmodels.db</code>. Keep both directories/files to preserve state across restarts. These development defaults use one local Orleans silo, memory stream delivery and memory reminders. They are not a clustered production deployment.</p>
+<p><img alt="ToDo command, event and read-model flow" src="../assets/diagrams/samples.svg" /></p>
+<h3 id="existing-prototype-data">Existing prototype data</h3>
+<p>This example replaces the old handwritten event bus. Its event shapes and SQLite owner column differ from the prototype. Preserve any useful prototype data separately and start this learning sample with a fresh event folder and read-model database. <code>EnsureCreated</code> creates a new demonstration schema; it does not migrate an existing database. A real application uses reviewed EF migrations and explicit event-schema evolution.</p>
+<h2 id="http-walkthrough">HTTP walkthrough</h2>
+<p>Create a todo. Supplying a stable ID makes retries safe; omitting it generates a new ID for each request.</p>
+<pre><code class="language-bash">curl http://localhost:5080/todos \
+  -H 'Content-Type: application/json' \
+  -H 'X-Correlation-Id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' \
+  -d '{&quot;id&quot;:&quot;22222222-2222-2222-2222-222222222222&quot;,&quot;title&quot;:&quot;Learn event sourcing&quot;}'
+
+curl http://localhost:5080/todos/22222222-2222-2222-2222-222222222222
+curl -X POST http://localhost:5080/todos/22222222-2222-2222-2222-222222222222/complete
+curl http://localhost:5080/todos
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create valid todo</td>
+<td><code>201 Created</code>; same owner, ID and title retry emits no new event</td>
+</tr>
+<tr>
+<td>Create same ID with another title</td>
+<td><code>409 Conflict</code></td>
+</tr>
+<tr>
+<td>Empty/too long title or empty supplied ID</td>
+<td><code>400 Bad Request</code></td>
+</tr>
+<tr>
+<td>Complete existing owned todo</td>
+<td><code>202 Accepted</code>; repeated completion emits no new event</td>
+</tr>
+<tr>
+<td>Complete missing todo</td>
+<td><code>404 Not Found</code></td>
+</tr>
+<tr>
+<td>Complete another owner's todo</td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>Get missing/unowned todo</td>
+<td><code>404 Not Found</code></td>
+</tr>
+<tr>
+<td>Get list</td>
+<td>Caller-filtered SQL page; <code>skip=0</code>, <code>take=50</code>, maximum 100</td>
+</tr>
+<tr>
+<td><code>GET /health</code></td>
+<td>Process readiness after silo and database startup</td>
+</tr>
+</tbody>
+</table></div>
+<p>The API awaits the actor command and event append. The memory stream delivers live projections asynchronously; the EF consumer awaits each SQLite write and propagates a failed write to its delivery pipeline. Queries can briefly return the previous read model. The browser refreshes until the change appears. This ordinary store/projection combination does not provide an atomic event-plus-read-model transaction or durable projection outbox. A production design needs explicit consumer recovery and projection repair; retain the read database on restart, and never silently rebuild it by scanning every stream at startup.</p>
+<h2 id="understand-the-code">Understand the code</h2>
+<h3 id="1-commands-express-intent">1. Commands express intent</h3>
+<p><code>TodoDomain.cs</code> defines messages and their owning actor. Orleans serializer member IDs are explicit and stable; retain existing IDs when messages evolve.</p>
+<pre><code class="language-csharp">[GenerateSerializer]
+public sealed record CreateTodoCommand(Metadata Headers,
+    [property: Id(0)] Guid TodoId,
+    [property: Id(1)] string Title) : Command&lt;ITodoActor&gt;(Headers);
+</code></pre>
+<p>The API validates input before dispatch. The actor repeats domain validation because future callers may bypass HTTP. <code>TodoId</code> is the actor's key and the business retry key. A conflicting reuse of the key fails.</p>
+<pre><code class="language-csharp">if (State.TodoId != Guid.Empty)
+{
+    if (State.OwnerId != command.Headers.UserId)
+        throw new UnauthorizedAccessException();
+    if (State.Title != command.Title)
+        throw new InvalidOperationException(&quot;This ID already has a different title.&quot;);
+    return []; // The same business operation already succeeded.
+}
+</code></pre>
+<h3 id="2-events-describe-what-happened">2. Events describe what happened</h3>
+<p>The actor returns an event; Troolio appends it and applies it to actor state. Domain timestamps are captured when handling the command, then persisted in the event.</p>
+<pre><code class="language-csharp">return [new TodoCreated(command.Headers, command.TodoId,
+    command.Headers.UserId, command.Title, DateTimeOffset.UtcNow)];
+</code></pre>
+<h3 id="3-state-replay-is-pure">3. State replay is pure</h3>
+<p><code>TodoState.Apply</code> restores state from recorded facts. Activation reads only the owning actor's stream. These reducers never write SQL, send a notification or execute another command.</p>
+<pre><code class="language-csharp">public TodoState Apply(TodoCreated e) =&gt;
+    new(e.TodoId, e.OwnerId, e.Title, false, e.CreatedAt, null);
+
+public TodoState Apply(TodoCompleted e) =&gt;
+    this with { IsCompleted = true, CompletedAt = e.CompletedAt };
+
+public void On(TodoCreated e) =&gt; State = State.Apply(e);
+public void On(TodoCompleted e) =&gt; State = State.Apply(e);
+</code></pre>
+<h3 id="4-a-live-projection-creates-the-query-view">4. A live projection creates the query view</h3>
+<p><code>TodoProjection.cs</code> subscribes to live <code>TodoActor</code> events. Its mappings create/update relational entities; the extension awaits persistence and propagates failures.</p>
+<pre><code class="language-csharp">[ProjectionStreamSubscription(nameof(TodoActor))]
+public sealed class TodoEfProjection
+    : EntityFrameworkBatchedProjection&lt;TodoReadModel, TodoReadModelDbContext&gt;,
+      ITodoEfProjection
+{
+    public Task On(EventEnvelope&lt;TodoCreated&gt; e) =&gt; Create(e);
+    public Task On(EventEnvelope&lt;TodoCompleted&gt; e) =&gt; Update(e);
+    // SetupMappings defines the entity fields; see the complete source file.
+}
+</code></pre>
+<p><code>EventEnvelope.Id</code> is the source actor key. <code>Stream</code> plus <code>Version</code> locates the event in its source stream; it is not the same thing as a request or event message ID. The EF adapter's existing-key create handling is a basic duplicate safeguard, not a durable inbox for every possible operation.</p>
+<h3 id="5-read-sql-without-waking-every-actor">5. Read SQL without waking every actor</h3>
+<p>List and detail endpoints query the durable model with the current server identity. A list never loads all todo streams. <code>GET /todos?skip=0&amp;take=50</code> reads a bounded SQL page; the maximum page size is 100. The SQLite mapping stores creation timestamps as UTC ticks so ordering stays inside the database.</p>
+<pre><code class="language-csharp">var todos = await db.Todos.AsNoTracking()
+    .Where(x =&gt; x.OwnerId == identity.UserId)
+    .OrderByDescending(x =&gt; x.CreatedAt).ThenBy(x =&gt; x.Id)
+    .Skip(skip).Take(take).ToListAsync();
+</code></pre>
+<h2 id="identity-and-metadata">Identity and metadata</h2>
+<p>The sample has one server-configured demonstration identity, <code>Todo:DemoUserId</code>. Everyone using the local API acts as that user. It deliberately accepts no client <code>X-User-Id</code> authority. Replace <code>DemoIdentity</code> with a verified authenticated principal before exposing this application beyond local learning.</p>
+<pre><code class="language-csharp">return new Metadata(correlationId, identity.UserId, Guid.Empty);
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning in this sample</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CorrelationId</code></td>
+<td>Diagnostic ID shared by a request flow; valid <code>X-Correlation-Id</code> is echoed in the response</td>
+</tr>
+<tr>
+<td><code>UserId</code></td>
+<td>Actor owner identity supplied by trusted server configuration</td>
+</tr>
+<tr>
+<td><code>DeviceId</code></td>
+<td><code>Guid.Empty</code>; no verified device identity is available</td>
+</tr>
+<tr>
+<td><code>MessageId</code></td>
+<td>Troolio assigns runtime message identities; do not use it as the todo retry key</td>
+</tr>
+<tr>
+<td><code>CausationId</code></td>
+<td>Troolio stamps emitted events with the handled command's message ID</td>
+</tr>
+<tr>
+<td><code>TransactionId</code></td>
+<td>Framework metadata for the ordinary command flow; it does not imply an atomic SQLite transaction with the event store</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="change-event-storage">Change event storage</h2>
+<p><code>TodoRuntime.cs</code> builds exactly one <code>TroolioServer</code> host and uses its actor system for API commands. The web host owns startup and shutdown. <code>FileSystem</code> is the default; <code>InMemory</code> is available only for temporary demonstrations and loses all events on restart.</p>
+<p>For a local KurrentDB/EventStore-compatible gRPC endpoint, set:</p>
+<pre><code class="language-bash">Todo__EventStore=EventStore \
+EventStore__ConnectionString='esdb://localhost:2113?tls=false' \
+dotnet run --project Sample/ToDo.EventStoreEfApi --urls http://localhost:5080
+</code></pre>
+<p>The retained <code>Troolio.Stores.EventStore</code> package now uses gRPC rather than legacy TCP. Production endpoints require appropriate TLS and credentials, provided through your host configuration/secret manager.</p>
+<pre><code class="language-csharp">services.AddSingleton(new KurrentDBClient(
+    KurrentDBClientSettings.Create(connectionString)));
+// TodoRuntime selects TroolioServer&lt;ESStore, JsonEventSerializer&gt;(...).
+</code></pre>
+<p>Port defaults are <code>19220</code> (silo) and <code>19221</code> (gateway). Change <code>Todo:SiloPort</code> and <code>Todo:GatewayPort</code> to run another local instance. Each independent demonstration instance also needs its own event folder and SQLite database. Sharing FileSystemStore across processes is unsupported.</p>
+<h2 id="explore-the-complete-source">Explore the complete source</h2>
+<p><a href="https://github.com/Fifty3North/troolio/tree/main/Sample/ToDo.EventStoreEfApi">Open the ToDo application on GitHub</a>. The source includes the domain, hosting setup, SQLite mapping, browser client and HTTP contract.</p>
+<p>The sample consumes Troolio.Core 10.0.8, Troolio.Projection.EntityFramework 10.0.2 and Troolio.Stores.EventStore 10.0.2. See <a href="ef-projections.html">EF projections</a> and <a href="eventstore-store.html">ordinary gRPC event storage</a> to use the extensions in your own application.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

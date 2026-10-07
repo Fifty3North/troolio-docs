@@ -1,0 +1,74 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Build derived hashes, partitions and bounded change-feed readers."><title>Redis projections · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a><span class="group">Samples</span><a href="calculator-sample.html">Run the Calculator sample</a><a href="todo-sample.html">Build the ToDo API</a><a href="shopping-sample.html">Explore Shopping List</a><span class="group">Extensions</span><a href="ef-projections.html">EF Core projections</a><a class="current" aria-current="page" href="redis-projections.html">Redis projections</a><a href="marten-store.html">Marten event storage</a><a href="eventstore-store.html">Ordinary gRPC event storage</a></div></aside><main class="article"><div class="kicker">Documentation / Extensions</div><h1 id="redis-projections">Redis projections</h1>
+<p>Redis derived read models, entity indexes and bounded partition change feeds for Troolio applications. Requires .NET 10 and Troolio.Core 10.0.8. Redis is a derived cache; keep authoritative business events in the actor's event store.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#register-an-owned-connection">Register an owned connection</a></li><li><a href="#create-update-and-read-an-entity">Create, update and read an entity</a></li><li><a href="#partition-membership-and-deletion">Partition membership and deletion</a></li><li><a href="#read-a-bounded-change-page">Read a bounded change page</a></li><li><a href="#event-driven-projection">Event-driven projection</a></li><li><a href="#run-the-provider-example">Run the provider example</a></li><li><a href="#recover-a-derived-cache">Recover a derived cache</a></li></ul></nav></details>
+<pre><code class="language-bash">dotnet add package Troolio.Projection.Redis --version 10.0.2
+</code></pre>
+<h2 id="register-an-owned-connection">Register an owned connection</h2>
+<p>Register one provider for each application configuration. The connection is reusable and belongs to that provider's DI lifetime; separate provider instances retain their own configuration.</p>
+<pre><code class="language-csharp">services.AddSingleton&lt;IRedisConnectionProvider&gt;(_ =&gt;
+    new RedisConnectionProvider(configuration.GetConnectionString(&quot;Redis&quot;)!));
+services.AddSingleton&lt;RedisProvider&lt;TaskCard&gt;&gt;();
+services.AddSingleton&lt;IRedisReadProvider&lt;TaskCard&gt;&gt;(sp =&gt;
+    sp.GetRequiredService&lt;RedisProvider&lt;TaskCard&gt;&gt;());
+services.AddSingleton&lt;IRedisWriteProvider&lt;TaskCard&gt;&gt;(sp =&gt;
+    sp.GetRequiredService&lt;RedisProvider&lt;TaskCard&gt;&gt;());
+</code></pre>
+<p>Use a secured production connection string supplied through host configuration. The host disposes the singleton connection provider.</p>
+<h2 id="create-update-and-read-an-entity">Create, update and read an entity</h2>
+<p>The entity ID identifies one cached object. The partition ID identifies an index and a change feed, such as one user's task board. Provider transactions commit the mutation, index change and feed entry together on a single Redis server.</p>
+<pre><code class="language-csharp">public sealed class TaskCard
+{
+    public Guid Id { get; set; }
+    public string? Title { get; set; }
+}
+
+var card = new TaskCard { Id = taskId, Title = &quot;Buy milk&quot; };
+string cursor = await provider.CreateEntity(taskId, card, boardId);
+card.Title = &quot;Buy oat milk&quot;;
+await provider.UpdateEntity(taskId, card, boardId, x =&gt; x.Title!);
+TaskCard? current = await provider.GetEntityAsync(taskId);
+</code></pre>
+<p>Use asynchronous reads inside async actor and HTTP handlers. Each successful write returns its own change cursor, including concurrent writes. Failures propagate; a cursor is not returned for an uncommitted transaction.</p>
+<h2 id="partition-membership-and-deletion">Partition membership and deletion</h2>
+<p>Membership indexes can share one entity across partitions. Removing membership leaves the entity itself available.</p>
+<pre><code class="language-csharp">await provider.AddEntityKeyToPartition(taskId, secondBoardId);
+await provider.UpdateEntityKeyInPartition(taskId, secondBoardId);
+await provider.RemoveEntityKeyFromPartition(taskId, secondBoardId);
+// Delete removes the shared entity plus this partition's index entry.
+await provider.DeleteEntity(taskId, boardId);
+</code></pre>
+<p>If an entity belongs to several partitions, remove its other memberships before globally deleting it. Entity keys currently use the CLR type's simple name, so choose distinct read-model class names across your application. Existing key layout is retained. Multi-key transactions are intended for a single Redis server; this adapter does not configure Redis Cluster hash slots.</p>
+<h2 id="read-a-bounded-change-page">Read a bounded change page</h2>
+<p>Absolute offsets are independent from Troolio correlation/causation IDs. A page reads at most 1000 feed entries; 100 is the default. Advance only after processing the page.</p>
+<pre><code class="language-csharp">long offset = savedOffset;
+RedisChangePage page = await provider.GetChangePageAsync(boardId, offset, 100);
+foreach (ChangeHashEntry change in page.Entries)
+{
+    // Read the current entity, or remove it locally when the entity is absent.
+    await RefreshCard(change.EntityKey);
+}
+savedOffset = page.NextOffset;
+</code></pre>
+<p><code>HasMore</code> means the page filled its requested limit; the next page can be empty. Legacy <code>GetChangeEntries</code> checks only the latest 1000 entries and rejects a cursor outside that window. Offset paging assumes retained feed entries have not been trimmed. Configure retention and snapshot/reload behavior together; Redis feed entries are cache synchronization hints, not a durable delivery ledger.</p>
+<h2 id="event-driven-projection">Event-driven projection</h2>
+<p>A projection can map each live event to <code>RedisEventEntityCreate</code>, <code>RedisEventEntityUpdate</code>, partition membership changes or deletion. <code>RedisPersistence&lt;TEntity&gt;.Persist</code> awaits the mapped mutations and rejects unsupported mapping types. The application supplies live event subscription and durable recovery strategy. Pure actor replay never updates Redis or sends notifications.</p>
+<pre><code class="language-csharp">Mapper.AddMap&lt;EventEnvelope&lt;TaskRenamed&gt;, Task&lt;RedisEventEntityUpdate&lt;TaskCard&gt;&gt;&gt;(e =&gt;
+    Task.FromResult(new RedisEventEntityUpdate&lt;TaskCard&gt;(e.Event.TaskId,
+        new TaskCard { Id = e.Event.TaskId, Title = e.Event.Title },
+        e.Event.BoardId, card =&gt; card.Title!)));
+// A RedisPersistence&lt;TaskCard&gt; handler awaits Update(e).
+</code></pre>
+<p>Authorization remains with the application: resolve partition IDs from the verified caller and enforce access before exposing cards or feeds.</p>
+<h2 id="run-the-provider-example">Run the provider example</h2>
+<p><a href="https://github.com/Fifty3North/troolio/tree/main/Sample/RedisReadModels">Redis Read Models on GitHub</a> is a small executable using this package's public API. Point it at an owned development Redis server:</p>
+<pre><code class="language-sh">ConnectionStrings__Redis='localhost:16379' \
+dotnet run --project Sample/RedisReadModels
+</code></pre>
+<p>The program creates a card, updates one field, reads the committed value, deletes the card and walks a change feed in pages of two. It uses a fresh partition and never scans or flushes shared Redis data.</p>
+<pre><code class="language-csharp">var updated = await cards.UpdateEntity(cardId, card, partitionId,
+    value =&gt; value.IsComplete);
+var page = await cards.GetChangePageAsync(partitionId, offset, maxCount: 2);
+offset = page.NextOffset;
+</code></pre>
+<p>Use a projection-specific class name and a caller-authorized partition. A partition is a query/index boundary, not an authentication mechanism. A deleted entity may still have retained change entries so clients can remove stale local cards. A current read can include a newer change than the feed entry you are processing; this is a latest-state refresh protocol rather than historical event replay.</p>
+<h2 id="recover-a-derived-cache">Recover a derived cache</h2>
+<p>Keep a saved cursor only as long as its feed history is retained. Pair any truncation policy with a reload marker and an explicit bounded refresh source. A cache miss is not evidence that the authoritative domain object never existed. Use a relational read model or bounded repair feed when reconstructing the cache; serving startup should not replay every actor stream.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>

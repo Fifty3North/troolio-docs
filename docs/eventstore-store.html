@@ -1,0 +1,72 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Use the EventStore extension with current KurrentDB transport."><title>Ordinary gRPC event storage · Troolio</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="topbar"><nav class="nav wrap" aria-label="Main navigation"><a class="brand" href="../"><span class="mark">↗</span>troolio<span style="color:var(--cyan)">.</span></a><button class="menu" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button><div class="navlinks"><a href="index.html">Docs</a><a href="getting-started.html">Get started</a><a href="packages.html">Packages</a><a class="github" href="https://github.com/Fifty3North/troolio-docs">GitHub ↗</a></div></nav></header><div class="wrap doc-shell"><aside class="side" aria-label="Documentation"><a href="index.html">Documentation home</a><label class="search-label" for="doc-search">Search docs</label><input id="doc-search" class="doc-search" type="search" placeholder="Search topics…" autocomplete="off"><div class="search-results" aria-live="polite"></div><button class="doc-nav-toggle" type="button" aria-expanded="false" aria-controls="doc-nav">Browse topics <span aria-hidden="true">⌄</span></button><div class="doc-nav" id="doc-nav"><span class="group">Start</span><a href="getting-started.html">Get started</a><a href="how-it-works.html">How Troolio works</a><a href="model-a-command.html">Model a command</a><a href="first-actor.html">Build your first actor</a><a href="workshop-walkthrough.html">Build a workshop workflow</a><a href="host-setup.html">Configure a host</a><a href="client-and-routing.html">Client calls and routing</a><span class="group">Foundations</span><a href="actors-and-commands.html">Actors and commands</a><a href="events-and-state.html">Events and state</a><a href="stores-and-serialization.html">Stores and serialization</a><a href="streams-and-subscriptions.html">Streams and subscriptions</a><a href="projections-and-read-models.html">Projections and read models</a><a href="reliable-jobs.html">Reliable jobs</a><a href="message-metadata.html">Message metadata</a><a href="correlation-and-causation.html">Correlation and causation</a><a href="actor-boundaries.html">Actor boundaries and identity</a><a href="cqrs-in-practice.html">CQRS in practice</a><a href="replay-and-live-events.html">Replay and live events</a><span class="group">Patterns</span><a href="orchestration-workflows.html">Orchestration workflows</a><a href="projection-design.html">Design a durable projection</a><a href="read-model-design.html">Design read models</a><a href="idempotency-and-ordering.html">Idempotency and ordering</a><a href="realtime-updates.html">Realtime read-model updates</a><a href="notifications-and-background-work.html">Notifications and background work</a><span class="group">Transactions</span><a href="selected-command-route.html">Selected command route</a><a href="atomic-commit.html">Atomic commit</a><a href="route-authority.html">Route authority</a><a href="orchestration.html">Orchestration</a><a href="external-effects.html">External effects</a><a href="recovery.html">Recovery</a><span class="group">Integrations</span><a href="agents.html">Agents package</a><a href="sql-server.html">SQL Server integration</a><a href="kurrentdb.html">KurrentDB integration</a><a href="kurrentdb-sql-server.html">KurrentDB with SQL Server</a><span class="group">Operations</span><a href="security-and-retention.html">Security and retention</a><a href="testing.html">Testing applications</a><a href="migration.html">Upgrade and migration</a><a href="troubleshooting.html">Troubleshooting</a><a href="deployment-checklist.html">Deployment checklist</a><a href="projection-catchup.html">Projection catch-up and rebuilds</a><a href="observability.html">Tracing and observability</a><span class="group">Reference</span><a href="packages.html">Packages and compatibility</a><a href="api-map.html">API map</a><a href="glossary.html">Glossary</a><a href="release-notes.html">Release notes: 10.0.6</a><span class="group">Samples</span><a href="calculator-sample.html">Run the Calculator sample</a><a href="todo-sample.html">Build the ToDo API</a><a href="shopping-sample.html">Explore Shopping List</a><span class="group">Extensions</span><a href="ef-projections.html">EF Core projections</a><a href="redis-projections.html">Redis projections</a><a href="marten-store.html">Marten event storage</a><a class="current" aria-current="page" href="eventstore-store.html">Ordinary gRPC event storage</a></div></aside><main class="article"><div class="kicker">Documentation / Extensions</div><h1 id="ordinary-grpc-event-storage">Ordinary gRPC event storage</h1>
+<p>Supported gRPC persistence for ordinary Troolio actors using KurrentDB. The historical package ID remains available; the deprecated TCP transport has been replaced. Requires .NET 10 and Troolio.Core 10.0.8.</p><details class="page-outline"><summary>On this page</summary><nav aria-label="Page sections"><ul><li><a href="#register-the-client-and-ordinary-store">Register the client and ordinary store</a></li><li><a href="#append-with-concurrency-control">Append with concurrency control</a></li><li><a href="#link-streams-and-snapshots">Link streams and snapshots</a></li><li><a href="#migration-and-delivery-limits">Migration and delivery limits</a></li><li><a href="#run-an-http-application">Run an HTTP application</a></li><li><a href="#choose-the-correct-kurrent-integration">Choose the correct Kurrent integration</a></li></ul></nav></details>
+<pre><code class="language-bash">dotnet add package Troolio.Stores.EventStore --version 10.0.2
+</code></pre>
+<h2 id="register-the-client-and-ordinary-store">Register the client and ordinary store</h2>
+<p>The host owns a reusable client. Credentials and TLS belong in application configuration, not source code.</p>
+<pre><code class="language-csharp">services.AddSingleton(_ =&gt; new KurrentDBClient(
+    KurrentDBClientSettings.Create(configuration.GetConnectionString(&quot;EventStore&quot;)!)));
+services.AddSingleton&lt;ESStore&gt;();
+</code></pre>
+<p>Use <code>TroolioServer&lt;ESStore&gt;</code> when building the Troolio host. Its serialization and logging services supply the remaining constructor arguments:</p>
+<pre><code class="language-csharp">IHost host = Host.CreateDefaultBuilder().TroolioServer&lt;ESStore&gt;(
+    &quot;Tasks&quot;, new[] { typeof(TaskActor).Assembly }, services =&gt;
+    {
+        services.AddSingleton(_ =&gt; new KurrentDBClient(
+            KurrentDBClientSettings.Create(connectionString)));
+    });
+await host.StartAsync();
+</code></pre>
+<p>Configure the host's Orleans membership/storage profile separately. The convenience <code>Startup.RunWithDefaults</code> wrapper reads <code>ConnectionStrings:EventStore</code> from appsettings and environment variables. <code>ES.CreateClient(connectionString)</code> creates a client; it does not use a global static connection.</p>
+<p>A local disposable insecure node can use <code>esdb://localhost:2113?tls=false</code>. Production should use TLS and credentials, for example <code>esdb://user:password@server:2113?tls=true</code>, supplied securely through configuration.</p>
+<h2 id="append-with-concurrency-control">Append with concurrency control</h2>
+<p>A stream head of 0 means no events. Troolio event versions start at 1; KurrentDB revisions start at 0. The adapter performs that translation and throws Troolio's <code>WrongExpectedVersionException</code> on a conflicting append.</p>
+<pre><code class="language-csharp">IEvent[] events = { new TaskRenamed(taskId, &quot;New title&quot;, headers) };
+ulong appended = await store.Append(streamName, expectedVersion, events);
+IEvent[] tail = await store.ReadStreamFromEvent(streamName, expectedVersion + 1);
+(IEvent? last, ulong head) = await store.ReadLastEvent(streamName);
+</code></pre>
+<p>Events retain serialized metadata including correlation, causation, user, device and transaction IDs. An event's message ID supplies its storage identity when present. Empty appends write nothing. Unknown event types or invalid payloads fail explicitly; they are not silently dropped from actor replay.</p>
+<h2 id="link-streams-and-snapshots">Link streams and snapshots</h2>
+<p>Linked read models refer to source stream/version pairs. The adapter writes the KurrentDB link representation and resolves it on reads.</p>
+<pre><code class="language-csharp">await store.Append(readModelStream, linkHead,
+    new IEvent[] { new LinkEvent(Guid.NewGuid(), sourceVersion, sourceStream) });
+IEvent? sourceEvent = await store.ReadStreamEvent(readModelStream, linkHead + 1);
+</code></pre>
+<p>The link stream retains its own version even when the resolved source event has a different source version. Keep source events available for the lifetime of linked read models. Typed actor snapshot events use the same serializer and ordinary persistence API.</p>
+<h2 id="migration-and-delivery-limits">Migration and delivery limits</h2>
+<p>Replace old TCP host/port settings and global <code>ES.Connection</code> registration with the injected gRPC client. KurrentDB versions without TCP support can now be used. This package preserves ordinary event CLR type names and serialized payloads; retain event types/aliases and validate historical data before renaming application types.</p>
+<p>This adapter implements ordinary <code>IStore</code>. <code>Troolio.KurrentDB</code> provides separate policy/authority-driven selected transaction capabilities; it is not a drop-in ordinary store replacement. Domain append here does not automatically provide durable projection dispatch, a SQL inbox or atomic cross-actor operations.</p>
+<p>Actor activation may restore its own state from its stream. Startup and readiness do not enumerate all actors or replay global history. Recovery tools should operate on bounded streams/partitions. <code>Clear</code> rejects deletion of shared event history; reset explicitly owned test infrastructure instead.</p>
+<p><a href="https://fifty3north.github.io/troolio-docs/docs/eventstore-store.html">EventStore store guide</a> · <a href="https://github.com/Fifty3North/troolio/tree/main/Sample/ToDo.EventStoreEfApi">ToDo sample</a></p>
+<h2 id="run-an-http-application">Run an HTTP application</h2>
+<p><a href="todo-sample.html">The ToDo API</a> uses this package's ordinary <code>IStore</code> alongside EF Core read models. Its default filesystem store makes the beginner journey self-contained; switching configuration selects the gRPC adapter:</p>
+<pre><code class="language-sh">Todo__EventStore=EventStore \
+EventStore__ConnectionString='esdb://localhost:12113?tls=false' \
+dotnet run --project Sample/ToDo.EventStoreEfApi --urls http://localhost:5080
+</code></pre>
+<p>The example endpoint is an owned local development server. Configure credentials and TLS for the server you deploy to. Retain both authoritative event history and the relational query database across restarts. The domain and projection model evolve separately, so a storage upgrade is not a read-model rebuild.</p>
+<h2 id="choose-the-correct-kurrent-integration">Choose the correct Kurrent integration</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Integration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ordinary event-sourced actors using <code>IStore</code></td>
+<td><code>Troolio.Stores.EventStore</code></td>
+</tr>
+<tr>
+<td>Explicit selected atomic routes, trusted ingress and provider recovery</td>
+<td>Framework <code>Troolio.KurrentDB</code> and its route setup</td>
+</tr>
+<tr>
+<td>Kurrent coordination with SQL evidence</td>
+<td>Framework <code>Troolio.KurrentDB.SqlServer</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Read <a href="selected-command-route.html">selected command routes</a> before choosing the advanced path. Installing a package alone does not create those authority, fencing, queue or transaction contracts. Ordinary live projection delivery can lag a successful event append; use bounded polling for a demo and an explicit durable dispatch/repair design when the application requires recovery after process loss.</p></main></div><footer class="footer"><div class="wrap footgrid"><span>© Fifty3North · Troolio documentation</span><span><a href="../">Home</a><a href="index.html">All docs</a></span></div></footer><script src="../assets/site.js" defer></script></body></html>
